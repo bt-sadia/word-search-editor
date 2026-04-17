@@ -670,11 +670,11 @@ function calculateDifficulty(grid, words) {
     }
   });
 
-  const finalScore = Math.round(wd * (1 + factorSum));
+  const finalScore = Math.round((wd / T) * (1 + factorSum) / 10);
   const LEVELS = [
-    { max: 80,  label: 'Easy',   color: '#27ae60' },
-    { max: 180, label: 'Medium', color: '#f39c12' },
-    { max: 320, label: 'Hard',   color: '#e74650' },
+    { max: 8,  label: 'Easy',   color: '#27ae60' },
+    { max: 18, label: 'Medium', color: '#f39c12' },
+    { max: 32, label: 'Hard',   color: '#e74650' },
     { max: Infinity, label: 'Expert', color: '#9b59b6' },
   ];
   const { label, color } = LEVELS.find(l => finalScore < l.max);
@@ -732,7 +732,7 @@ function diffPanelHTML(d) {
     </div>
     <hr class="diff-sep">
     <div class="diff-section-hd">Word Difficulty (WD)</div>
-    <div class="diff-sub" style="margin-bottom:5px">IWD = word_count × (board_letters ÷ word_length)</div>
+    <div class="diff-sub" style="margin-bottom:5px">IWD = word_count × (board_letters ÷ word_length) &nbsp;|&nbsp; WD = Σ IWD ÷ total_words</div>
     <table class="diff-table">
       ${iwdRows}
       <tr class="wd-total"><td colspan="3">WD Total</td><td>${d.wd}</td></tr>
@@ -741,7 +741,7 @@ function diffPanelHTML(d) {
     <div class="diff-section-hd">Positioning Factors</div>
     ${factorRows || '<div class="diff-sub">No words placed yet</div>'}
     <div class="diff-final-row">
-      <span class="diff-final-eq">${d.wd} × (1 ${d.factorSum>=0?'+':''}${(d.factorSum*100).toFixed(1)}%) = ${d.wd} × ${multiplier}</span>
+      <span class="diff-final-eq">(${d.wd} ÷ ${d.T}) × (1 ${d.factorSum>=0?'+':''}${(d.factorSum*100).toFixed(1)}%) ÷ 10 = ${(d.wd/d.T).toFixed(1)} × ${multiplier} ÷ 10</span>
       <span class="diff-final-num" style="color:${d.color}">${d.finalScore}</span>
     </div>`;
 }
