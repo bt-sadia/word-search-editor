@@ -664,12 +664,10 @@ function calculateDifficulty(grid, words) {
   let factorSum = 0;
   const activeFactors = [];
   FACTORS.forEach(f => {
-    const contrib = f.ofCells
-      ? f.val * (f.n / B)
-      : f.val * (f.n / T);
+    const contrib = f.val * f.n;   // factor × count directly, no normalisation
     if (f.n > 0) {
       factorSum += contrib;
-      activeFactors.push({ ...f, contrib: +contrib.toFixed(4) });
+      activeFactors.push({ ...f, contrib: +contrib.toFixed(3) });
     }
   });
 
@@ -711,8 +709,8 @@ function diffPanelHTML(d) {
       <span class="diff-factor-icon">${f.icon}</span>
       <span class="diff-factor-name">${f.label}</span>
       <span class="diff-factor-cnt">×${f.n}</span>
-      <span class="diff-factor-pct" style="color:${col}">${sign}${(f.val*100).toFixed(0)}%</span>
-      <span class="diff-factor-contrib">${contribSign}${(f.contrib*100).toFixed(1)}%</span>
+      <span class="diff-factor-pct" style="color:${col}">${sign}${f.val}</span>
+      <span class="diff-factor-contrib" style="color:${col}">${contribSign}${f.contrib.toFixed(3)}</span>
     </div>`;
   }).join('');
 
@@ -735,7 +733,7 @@ function diffPanelHTML(d) {
     </div>
     <hr class="diff-sep">
     <div class="diff-section-hd">Word Difficulty (WD)</div>
-    <div class="diff-sub" style="margin-bottom:5px">IWD = word_count × (board_letters ÷ word_length) &nbsp;|&nbsp; WD = Σ IWD ÷ total_words</div>
+    <div class="diff-sub" style="margin-bottom:5px">IWD = word_count × (board_letters ÷ word_length) &nbsp;·&nbsp; WD = Σ IWD</div>
     <table class="diff-table">
       ${iwdRows}
       <tr class="wd-total"><td colspan="3">WD Total</td><td>${d.wd}</td></tr>
@@ -744,7 +742,7 @@ function diffPanelHTML(d) {
     <div class="diff-section-hd">Positioning Factors</div>
     ${factorRows || '<div class="diff-sub">No words placed yet</div>'}
     <div class="diff-final-row">
-      <span class="diff-final-eq">(${d.wd} ÷ ${d.T}) × (1 ${d.factorSum>=0?'+':''}${(d.factorSum*100).toFixed(1)}%) ÷ 10 = ${(d.wd/d.T).toFixed(1)} × ${multiplier} ÷ 10</span>
+      <span class="diff-final-eq">((${d.wd} ÷ ${d.T}) × ${multiplier}) ÷ 10 = (${(d.wd/d.T).toFixed(2)} × ${multiplier}) ÷ 10</span>
       <span class="diff-final-num" style="color:${d.color}">${d.finalScore.toFixed(2)}</span>
     </div>`;
 }
