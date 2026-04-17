@@ -620,37 +620,40 @@ function calculateDifficulty(grid, words) {
       return { len: +len, cnt, perWord: +(B / +len).toFixed(1), iwd: +iwd.toFixed(1) };
     });
 
-  // ── Find each word & detect direction ───────────────────────────────────
+  // ── Find each word & detect orientation + reversal independently ────────
   const cellUse = {};
   const wordMeta = words.map(word => {
     const cells = eFindWord(grid, word);
-    if (!cells) return { word, dir: null };
+    if (!cells) return { word, orient: null, reversed: false };
     const dr = cells.length > 1 ? Math.sign(cells[1].r - cells[0].r) : 0;
     const dc = cells.length > 1 ? Math.sign(cells[1].c - cells[0].c) : 0;
-    const dir = dr === 0 && dc === 1  ? 'horizontal'
-              : dr === 0 && dc === -1 ? 'reversed'
-              : dc === 0              ? 'vertical'
-              :                         'diagonal';
+    // Orientation: horizontal / vertical / diagonal (independent of direction)
+    const orient = dr === 0 ? 'horizontal'
+                 : dc === 0 ? 'vertical'
+                 :             'diagonal';
+    // Reversed: word travels left (dc<0) or upward only (dr<0, dc=0)
+    const isReversed = dc < 0 || (dc === 0 && dr < 0);
     cells.forEach(({r,c}) => { const k=`${r},${c}`; cellUse[k]=(cellUse[k]||0)+1; });
-    return { word, dir };
+    return { word, orient, reversed: isReversed };
   });
 
-  const placed = wordMeta.filter(w => w.dir);
+  const placed = wordMeta.filter(w => w.orient);
   const T = placed.length || 1;
   const cnt = {
-    horizontal: placed.filter(w => w.dir === 'horizontal').length,
-    reversed:   placed.filter(w => w.dir === 'reversed').length,
-    vertical:   placed.filter(w => w.dir === 'vertical').length,
-    diagonal:   placed.filter(w => w.dir === 'diagonal').length,
+    horizontal: placed.filter(w => w.orient === 'horizontal').length,
+    vertical:   placed.filter(w => w.orient === 'vertical').length,
+    diagonal:   placed.filter(w => w.orient === 'diagonal').length,
+    reversed:   placed.filter(w => w.reversed).length,
   };
   const sharedCells = Object.values(cellUse).filter(v => v > 1).length;
 
   // ── Factor definitions ──────────────────────────────────────────────────
+  // Orientation and reversal are independent — a reversed diagonal gets BOTH
   const FACTORS = [
-    { key:'Hof', icon:'→', label:'Horizontal',     val:-0.05, n: cnt.horizontal, note:'easiest direction'   },
-    { key:'Rf',  icon:'←', label:'Reversed',       val: 0.40, n: cnt.reversed,   note:'right-to-left words' },
-    { key:'Vf',  icon:'↕', label:'Vertical',       val: 0.10, n: cnt.vertical,   note:'up/down words'       },
-    { key:'Df',  icon:'↗', label:'Diagonal',       val: 0.20, n: cnt.diagonal,   note:'diagonal words'      },
+    { key:'Hof', icon:'→', label:'Horizontal',     val:-0.05, n: cnt.horizontal, note:'left-to-right (easiest)' },
+    { key:'Vf',  icon:'↕', label:'Vertical',       val: 0.10, n: cnt.vertical,   note:'up/down words'           },
+    { key:'Df',  icon:'↗', label:'Diagonal',       val: 0.20, n: cnt.diagonal,   note:'diagonal words'          },
+    { key:'Rf',  icon:'←', label:'Reversed',       val: 0.40, n: cnt.reversed,   note:'any reversed direction'  },
     { key:'Sd',  icon:'◈', label:'Shared Letters', val: 0.05, n: sharedCells,    note:'crossing cells', ofCells: true },
     { key:'Mf',  icon:'?', label:'Mystery Words',  val: 0.30, n: 0,              note:'first letter shown'  },
     { key:'Hf',  icon:'👁',label:'Hidden Words',   val: 0.70, n: 0,              note:'whole word hidden'   },
@@ -670,11 +673,11 @@ function calculateDifficulty(grid, words) {
     }
   });
 
-  const finalScore = Math.round((wd / T) * (1 + factorSum) / 10);
+  const finalScore = +((wd / T) * (1 + factorSum) / 10).toFixed(2);
   const LEVELS = [
-    { max: 8,  label: 'Easy',   color: '#27ae60' },
-    { max: 18, label: 'Medium', color: '#f39c12' },
-    { max: 32, label: 'Hard',   color: '#e74650' },
+    { max: 3,  label: 'Easy',   color: '#27ae60' },
+    { max: 8,  label: 'Medium', color: '#f39c12' },
+    { max: 11, label: 'Hard',   color: '#e74650' },
     { max: Infinity, label: 'Expert', color: '#9b59b6' },
   ];
   const { label, color } = LEVELS.find(l => finalScore < l.max);
@@ -721,7 +724,7 @@ function diffPanelHTML(d) {
     </div>
     <div style="display:flex;gap:16px;margin-bottom:10px">
       <div>
-        <div class="diff-score-val" style="color:${d.color}">${d.finalScore}</div>
+        <div class="diff-score-val" style="color:${d.color}">${d.finalScore.toFixed(2)}</div>
         <div class="diff-sub">difficulty score</div>
       </div>
       <div style="flex:1">
@@ -742,7 +745,7 @@ function diffPanelHTML(d) {
     ${factorRows || '<div class="diff-sub">No words placed yet</div>'}
     <div class="diff-final-row">
       <span class="diff-final-eq">(${d.wd} ÷ ${d.T}) × (1 ${d.factorSum>=0?'+':''}${(d.factorSum*100).toFixed(1)}%) ÷ 10 = ${(d.wd/d.T).toFixed(1)} × ${multiplier} ÷ 10</span>
-      <span class="diff-final-num" style="color:${d.color}">${d.finalScore}</span>
+      <span class="diff-final-num" style="color:${d.color}">${d.finalScore.toFixed(2)}</span>
     </div>`;
 }
 
@@ -755,7 +758,7 @@ function diffStripHTML(d) {
     <span>${d.T} words</span>
     <span>·</span>
     <span class="diff-strip-detail" onclick="showDiffModal()" title="View breakdown">
-      Score: <strong style="color:${d.color}">${d.finalScore}</strong> ℹ
+      Score: <strong style="color:${d.color}">${d.finalScore.toFixed(2)}</strong> ℹ
     </span>`;
 }
 
