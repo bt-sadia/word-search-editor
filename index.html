@@ -702,6 +702,7 @@ function diffPanelHTML(d) {
   ).join('');
 
   const factorRows = d.activeFactors.map(f => {
+    const pct = (f.val * 100).toFixed(0);
     const sign = f.val > 0 ? '+' : '';
     const contribSign = f.contrib > 0 ? '+' : '';
     const col = f.val > 0 ? '#e74650' : '#27ae60';
@@ -709,7 +710,7 @@ function diffPanelHTML(d) {
       <span class="diff-factor-icon">${f.icon}</span>
       <span class="diff-factor-name">${f.label}</span>
       <span class="diff-factor-cnt">×${f.n}</span>
-      <span class="diff-factor-pct" style="color:${col}">${sign}${f.val}</span>
+      <span class="diff-factor-pct" style="color:${col}">${sign}${pct}%</span>
       <span class="diff-factor-contrib" style="color:${col}">${contribSign}${f.contrib.toFixed(3)}</span>
     </div>`;
   }).join('');
@@ -742,7 +743,7 @@ function diffPanelHTML(d) {
     <div class="diff-section-hd">Positioning Factors</div>
     ${factorRows || '<div class="diff-sub">No words placed yet</div>'}
     <div class="diff-final-row">
-      <span class="diff-final-eq">((${d.wd} ÷ ${d.T}) × ${multiplier}) ÷ 10 = (${(d.wd/d.T).toFixed(2)} × ${multiplier}) ÷ 10</span>
+      <span class="diff-final-eq">LD = 1 ${d.factorSum>=0?'+':''}${d.factorSum.toFixed(3)} = ${multiplier} &nbsp;·&nbsp; ((${d.wd} ÷ ${d.T}) × ${multiplier}) ÷ 10</span>
       <span class="diff-final-num" style="color:${d.color}">${d.finalScore.toFixed(2)}</span>
     </div>`;
 }
