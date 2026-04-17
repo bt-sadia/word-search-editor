@@ -1,0 +1,1463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Word Search</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:      #0e0e1a;
+  --surface: #181828;
+  --border:  #252540;
+  --text:    #dde0f0;
+  --muted:   #5a5a7a;
+  --accent:  #7c6af7;
+  --sz:      44px;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ── Header ── */
+.header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 52px;
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+.app-title {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+/* mode tabs */
+.mode-tabs {
+  display: flex;
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 2px;
+  border: 1px solid var(--border);
+}
+.tab-btn {
+  padding: 5px 14px;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  background: transparent;
+  color: var(--muted);
+}
+.tab-btn.active { background: var(--accent); color: #fff; }
+
+/* edit-mode header extras */
+.file-meta { display: flex; gap: 6px; flex: 1; overflow: hidden; }
+.meta-input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  outline: none;
+  min-width: 0;
+}
+.meta-input:focus { border-color: var(--accent); }
+.meta-input[readonly] { opacity: 0.45; cursor: default; }
+
+/* play-mode header info */
+.play-header-info { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+.play-title { font-size: 0.9rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.theme-badge {
+  font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--accent); background: #7c6af720; padding: 2px 8px; border-radius: 20px; white-space: nowrap;
+}
+.progress-pill {
+  font-size: 0.8rem; font-weight: 700; color: var(--muted); white-space: nowrap;
+}
+
+.header-actions { display: flex; gap: 6px; margin-left: auto; align-items: center; }
+
+.btn {
+  padding: 6px 13px;
+  border: none; border-radius: 7px;
+  font-size: 0.8rem; font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+  white-space: nowrap;
+}
+.btn:hover  { opacity: 0.82; }
+.btn:active { transform: scale(0.97); }
+.btn-accent  { background: var(--accent); color: #fff; }
+.btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+.btn-outline:hover { border-color: var(--accent); opacity: 1; }
+.btn-green  { background: #27ae60; color: #fff; }
+
+/* ── Content area ── */
+.content { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+
+/* ===== EDITOR ===== */
+#editorView {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* drop zone */
+.drop-zone {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 12px;
+  border: 2px dashed var(--border); margin: 28px; border-radius: 16px;
+  color: var(--muted); cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+}
+.drop-zone.drag-over { color: var(--accent); border-color: var(--accent); background: #7c6af710; }
+.drop-zone .dz-icon { font-size: 2.8rem; }
+
+/* grid panel */
+.grid-panel {
+  flex: 0 0 auto;
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 18px 16px 18px 18px;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+}
+
+.grid-wrap {
+  background: var(--surface); border-radius: 14px;
+  padding: 14px; border: 1px solid var(--border); display: inline-block;
+}
+
+.egrid { display: grid; gap: 4px; }
+
+.ecell {
+  width: var(--sz); height: var(--sz);
+  text-align: center; border-radius: 8px;
+  font-size: calc(var(--sz) * 0.4); font-weight: 800;
+  font-family: 'Courier New', monospace; text-transform: uppercase;
+  background: var(--bg); color: #9090b0;
+  border: 2px solid transparent; outline: none; cursor: text;
+  transition: background 0.1s, border-color 0.1s, color 0.1s, transform 0.1s;
+  padding: 0; caret-color: transparent;
+}
+.ecell:focus  { border-color: var(--accent); background: #1e1e38; caret-color: var(--accent); }
+.ecell.ehl    { color: #12121f; font-weight: 900; transform: scale(1.07); z-index: 2; }
+.ecell.edim   { opacity: 0.18; }
+
+.grid-controls {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 0.78rem; color: var(--muted); flex-wrap: wrap;
+}
+.ctrl-num {
+  width: 44px; background: var(--surface); border: 1px solid var(--border);
+  color: var(--text); padding: 4px 5px; border-radius: 5px; text-align: center;
+  font-size: 0.78rem; outline: none;
+}
+.ctrl-num:focus { border-color: var(--accent); }
+.ctrl-btn {
+  padding: 4px 9px; background: transparent; border: 1px solid var(--border);
+  color: var(--muted); border-radius: 5px; cursor: pointer; font-size: 0.75rem;
+}
+.ctrl-btn:hover { border-color: var(--accent); color: var(--text); }
+
+.placing-banner {
+  background: #7c6af720; border: 1px solid #7c6af750; border-radius: 8px;
+  padding: 7px 12px; font-size: 0.8rem; color: #a89eff;
+  display: flex; align-items: center; gap: 8px;
+}
+.cancel-btn { margin-left: auto; background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.78rem; }
+.cancel-btn:hover { color: #e74650; }
+
+/* side panels — three direct columns inside #editorView */
+.side-stats {
+  width: 0; /* hidden; stats now live in words-col */
+  display: none;
+}
+.words-col {
+  width: 230px; flex-shrink: 0;
+  display: flex; flex-direction: column; overflow: hidden;
+  border-left: 1px solid var(--border);
+}
+.bonus-col {
+  width: 230px; flex-shrink: 0;
+  display: flex; flex-direction: column; overflow: hidden;
+  border-left: 1px solid var(--border);
+}
+.col-header {
+  display: flex; align-items: center; gap: 7px;
+  padding: 6px 10px 5px; flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.65rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.1em; color: var(--muted); background: var(--surface);
+}
+.col-header .bonus-count { margin-left: auto; }
+/* keep .side-panel as a no-op wrapper so old refs don't break */
+.side-panel { display: contents; }
+.side-section { display: contents; }
+.side-columns { display: contents; }
+.side-col { display: contents; }
+.stats-row { display: flex; gap: 7px; }
+.stat-card {
+  flex: 1; background: var(--bg); border-radius: 8px;
+  padding: 9px 6px; text-align: center; border: 1px solid var(--border);
+}
+.stat-val { font-size: 1.35rem; font-weight: 800; line-height: 1; }
+.stat-lbl { font-size: 0.6rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-top: 3px; }
+
+.word-list-wrap { flex: 1; overflow-y: auto; padding: 4px 8px; }
+.word-item {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 7px; border-radius: 6px; cursor: pointer;
+  border: 1.5px solid transparent;
+  transition: background 0.1s, border-color 0.1s; margin-bottom: 1px;
+}
+.word-item:hover { background: var(--bg); }
+.word-item.active { background: var(--bg); border-color: var(--border); }
+.word-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+.word-text { flex: 1; font-family: 'Courier New', monospace; font-weight: 700; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.word-badge { font-size: 0.65rem; padding: 1px 5px; border-radius: 10px; font-weight: 600; }
+.badge-ok   { background: #27ae6020; color: #27ae60; }
+.badge-miss { background: #e7465020; color: #e74650; }
+.word-del { background: none; border: none; color: #444; cursor: pointer; font-size: 0.85rem; padding: 0 1px; transition: color 0.1s; flex-shrink: 0; }
+.word-del:hover { color: #e74650; }
+
+.place-btn { padding: 1px 5px; background: transparent; border: 1px solid var(--border); color: var(--muted); border-radius: 4px; cursor: pointer; font-size: 0.65rem; }
+.place-btn:hover { border-color: var(--accent); color: var(--text); }
+
+.add-row {
+  display: flex; gap: 6px; padding: 7px 8px 8px;
+  border-top: 1px solid var(--border); flex-shrink: 0;
+}
+.add-input {
+  flex: 1; background: var(--bg); border: 1px solid var(--border);
+  color: var(--text); padding: 5px 8px; border-radius: 6px;
+  font-size: 0.82rem; font-family: 'Courier New', monospace; text-transform: uppercase; outline: none;
+}
+.add-input:focus { border-color: var(--accent); }
+.no-words { color: var(--muted); font-size: 0.82rem; text-align: center; padding: 16px 0; }
+
+/* ===== PLAYER ===== */
+#playerView {
+  flex: 1; display: none;
+  flex-direction: column; align-items: center;
+  overflow: hidden;
+}
+
+/* empty play state */
+.play-empty {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 14px;
+  color: var(--muted);
+}
+.play-empty .pe-icon { font-size: 3rem; }
+.play-empty .pe-text { font-size: 1rem; font-weight: 600; }
+.play-empty .pe-sub  { font-size: 0.82rem; }
+
+/* words bar */
+.words-bar {
+  width: 100%; padding: 10px 14px;
+  display: flex; flex-wrap: wrap; gap: 7px; justify-content: center;
+  border-bottom: 1px solid var(--border); background: var(--surface); flex-shrink: 0;
+}
+.word-chip {
+  font-family: 'Courier New', monospace; font-size: 0.8rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.07em;
+  padding: 5px 12px; border-radius: 20px;
+  border: 1.5px solid var(--border); color: var(--muted); background: var(--bg);
+  transition: all 0.3s ease;
+}
+.word-chip.found {
+  border-color: transparent; color: #111;
+  text-decoration: line-through; text-decoration-color: rgba(0,0,0,0.45);
+  text-decoration-thickness: 2px; opacity: 0.75;
+}
+
+/* play grid */
+.play-grid-area {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  padding: 16px; overflow: hidden;
+}
+.pgrid { display: grid; gap: 4px; cursor: crosshair; }
+
+.pcell {
+  width: var(--sz); height: var(--sz);
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 8px;
+  font-family: 'Courier New', monospace;
+  font-size: calc(var(--sz) * 0.4); font-weight: 800; text-transform: uppercase;
+  background: var(--surface); color: #8888aa;
+  border: 1.5px solid var(--border);
+  transition: background 0.1s, color 0.1s, transform 0.1s, border-color 0.1s;
+}
+.pcell.pselect {
+  background: #7c6af740; color: var(--text);
+  border-color: var(--accent); transform: scale(1.07); z-index: 2;
+}
+.pcell.pfound { color: #111 !important; border-color: transparent !important; font-weight: 900; }
+
+@keyframes wrongFlash { 0%,100%{background:var(--surface)} 50%{background:#e7465025} }
+.pcell.pwrong { animation: wrongFlash 0.35s ease; }
+
+@keyframes foundPop { 0%{transform:scale(1)} 50%{transform:scale(1.14)} 100%{transform:scale(1)} }
+.pcell.pfound-anim { animation: foundPop 0.25s ease; }
+
+/* play bottom bar */
+.play-bar {
+  width: 100%; padding: 10px 20px;
+  display: flex; justify-content: space-around; align-items: center;
+  border-top: 1px solid var(--border); background: var(--surface); flex-shrink: 0;
+}
+.pstat { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.pstat-val { font-size: 1.2rem; font-weight: 800; color: var(--accent); }
+.pstat-lbl { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+
+/* ── Win overlay ── */
+#winOverlay {
+  display: none; position: fixed; inset: 0;
+  background: #0e0e1aee; z-index: 50;
+  flex-direction: column; align-items: center; justify-content: center;
+  backdrop-filter: blur(6px);
+}
+#winOverlay.show { display: flex; }
+.win-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 24px;
+  padding: 36px 44px; display: flex; flex-direction: column;
+  align-items: center; gap: 14px; max-width: 340px; width: 90%;
+  animation: pop 0.4s cubic-bezier(0.34,1.56,0.64,1);
+}
+@keyframes pop { from { transform: scale(0.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.win-emoji { font-size: 3.5rem; }
+.win-title { font-size: 1.7rem; font-weight: 900; color: var(--accent); }
+.win-time  { font-size: 2rem; font-weight: 800; }
+.win-sub   { color: var(--muted); font-size: 0.88rem; text-align: center; }
+
+/* ── Difficulty panel ── */
+.diff-panel {
+  background: var(--surface); border-radius: 10px;
+  border: 1px solid var(--border); padding: 13px 14px;
+}
+.diff-top {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 11px;
+}
+.diff-lbl { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); flex: 1; }
+.diff-badge {
+  font-size: 0.72rem; font-weight: 800; padding: 3px 11px;
+  border-radius: 20px; letter-spacing: 0.05em; color: #111;
+}
+.diff-score-val { font-size: 1.5rem; font-weight: 900; line-height: 1; }
+.diff-sub { font-size: 0.68rem; color: var(--muted); margin-top: 1px; }
+.diff-sep { border: none; border-top: 1px solid var(--border); margin: 9px 0; }
+.diff-section-hd {
+  font-size: 0.6rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.1em; color: var(--muted); margin-bottom: 5px;
+}
+.diff-table { width: 100%; border-collapse: collapse; font-size: 0.73rem; }
+.diff-table td { padding: 2px 3px; color: var(--text); vertical-align: middle; }
+.diff-table td:first-child { color: var(--accent); font-weight: 800; font-family: 'Courier New', monospace; width: 22px; }
+.diff-table td:last-child  { text-align: right; font-weight: 700; }
+.diff-table tr.wd-total td { border-top: 1px solid var(--border); padding-top: 5px; color: var(--text); font-weight: 700; }
+.diff-factor { display: flex; align-items: center; gap: 5px; font-size: 0.73rem; padding: 2px 0; }
+.diff-factor-icon { width: 18px; text-align: center; font-size: 0.9rem; flex-shrink: 0; }
+.diff-factor-name { flex: 1; }
+.diff-factor-cnt  { font-size: 0.67rem; color: var(--muted); margin-right: 4px; }
+.diff-factor-pct  { font-weight: 700; width: 44px; text-align: right; }
+.diff-factor-contrib { font-size: 0.67rem; color: var(--muted); width: 42px; text-align: right; }
+.diff-final-row {
+  display: flex; align-items: baseline; gap: 5px; font-size: 0.73rem;
+  margin-top: 7px; padding-top: 7px; border-top: 1px solid var(--border);
+}
+.diff-final-eq  { flex: 1; color: var(--muted); }
+.diff-final-num { font-size: 1rem; font-weight: 900; }
+
+/* Compact badge (play mode) */
+.diff-strip {
+  width: 100%; padding: 6px 14px;
+  display: flex; align-items: center; gap: 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface); flex-shrink: 0;
+  font-size: 0.75rem; color: var(--muted);
+}
+.diff-strip .diff-badge { font-size: 0.68rem; padding: 2px 9px; }
+.diff-strip-detail { cursor: pointer; display: flex; align-items: center; gap: 4px; }
+.diff-strip-detail:hover { color: var(--text); }
+
+/* Diff modal */
+.diff-modal-overlay {
+  position: fixed; inset: 0; background: #0e0e1acc;
+  z-index: 60; display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(4px);
+}
+.diff-modal {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 16px; padding: 22px 24px; max-width: 400px; width: 92%;
+  max-height: 85vh; overflow-y: auto;
+  animation: pop 0.25s cubic-bezier(0.34,1.56,0.64,1);
+}
+.diff-modal-close {
+  float: right; background: none; border: none;
+  color: var(--muted); cursor: pointer; font-size: 1.1rem; margin-left: 10px;
+}
+.diff-modal-close:hover { color: #e74650; }
+
+/* ── Bonus words ── */
+.bonus-section {
+  border-top: 1px solid var(--border);
+  padding: 11px 14px 13px; flex-shrink: 0;
+}
+.bonus-header {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 9px;
+}
+.bonus-scan-btn {
+  padding: 3px 9px; background: #f9ca2420; border: 1px solid #f9ca2450;
+  color: #f9ca24; border-radius: 5px; cursor: pointer; font-size: 0.72rem; font-weight: 700;
+}
+.bonus-scan-btn:hover { background: #f9ca2435; }
+.bonus-count { font-size: 0.72rem; color: var(--muted); margin-left: auto; }
+.bonus-list  { max-height: 148px; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; }
+.bonus-item  {
+  display: flex; align-items: center; gap: 7px;
+  padding: 5px 8px; border-radius: 6px; background: var(--bg);
+  border: 1px solid var(--border); cursor: pointer; transition: border-color 0.1s;
+}
+.bonus-item:hover { border-color: #f9ca2460; }
+.bonus-item.bhl { border-color: #f9ca24; background: #f9ca2410; }
+.bonus-word { font-family: 'Courier New', monospace; font-weight: 700; font-size: 0.85rem; text-transform: uppercase; flex: 1; color: #f9ca24; }
+.bonus-dir  { font-size: 0.85rem; color: var(--muted); }
+.bonus-len  { font-size: 0.68rem; color: var(--muted); background: var(--surface); padding: 1px 5px; border-radius: 3px; }
+.bonus-empty { font-size: 0.78rem; color: var(--muted); text-align: center; padding: 10px 0; }
+
+/* Bonus bar (play mode) */
+.bonus-bar {
+  width: 100%; padding: 7px 14px;
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+  border-top: 1px solid var(--border); background: var(--surface); flex-shrink: 0;
+}
+.bonus-bar-label {
+  font-size: 0.65rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.09em;
+  color: #f9ca24; white-space: nowrap;
+}
+.bonus-chip {
+  font-family: 'Courier New', monospace; font-size: 0.75rem; font-weight: 700;
+  text-transform: uppercase; padding: 3px 9px; border-radius: 20px;
+  background: #f9ca2418; border: 1.5px solid #f9ca2445; color: #f9ca24;
+  animation: foundPop 0.3s ease;
+}
+
+/* Cheat button */
+.cheat-btn {
+  padding: 6px 14px; border-radius: 8px; border: 1.5px solid #e7465050;
+  background: transparent; color: #e74650; font-size: 0.8rem; font-weight: 700;
+  cursor: pointer; transition: all 0.2s; letter-spacing: 0.03em;
+}
+.cheat-btn:hover  { background: #e7465015; border-color: #e74650; }
+.cheat-btn.active { background: #e7465022; border-color: #e74650; color: #ff6b6b; }
+
+/* Cheat cell highlight */
+.pcell.pcheat {
+  border-style: dashed !important;
+  opacity: 0.75;
+}
+
+/* Toast */
+.bonus-toast {
+  position: fixed; bottom: 76px; left: 50%; transform: translateX(-50%);
+  background: #1c1c30; border: 1px solid #f9ca2460; color: #f9ca24;
+  padding: 7px 18px; border-radius: 20px; font-size: 0.82rem; font-weight: 700;
+  font-family: 'Courier New', monospace; text-transform: uppercase; letter-spacing: 0.06em;
+  z-index: 40; pointer-events: none;
+  animation: toastAnim 1.8s ease forwards;
+}
+@keyframes toastAnim {
+  0%   { opacity: 0; transform: translateX(-50%) translateY(8px); }
+  15%  { opacity: 1; transform: translateX(-50%) translateY(0); }
+  75%  { opacity: 1; }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-6px); }
+}
+</style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<div class="header">
+  <span class="app-title">Word Search</span>
+  <div class="mode-tabs">
+    <button class="tab-btn active" id="tabEdit" onclick="switchMode('edit')">✏️ Edit</button>
+    <button class="tab-btn"        id="tabPlay" onclick="switchMode('play')">▶ Play</button>
+  </div>
+
+  <!-- Edit-mode header -->
+  <div class="file-meta" id="editHeaderMeta">
+    <input class="meta-input" id="metaId"    placeholder="ID"     style="width:80px"  title="Level ID">
+    <input class="meta-input" id="metaTheme" placeholder="Theme"  style="width:85px"  title="Theme">
+    <input class="meta-input" id="metaSize"  placeholder="Size"   style="width:62px"  title="Grid size" readonly>
+    <input class="meta-input" id="metaName"  placeholder="Level name" style="width:140px" title="Level name">
+  </div>
+
+  <!-- Play-mode header -->
+  <div class="play-header-info" id="playHeaderInfo" style="display:none">
+    <div class="play-title" id="playTitle"></div>
+    <div class="theme-badge" id="playTheme"></div>
+    <div class="progress-pill" id="playProgress"></div>
+  </div>
+
+  <div class="header-actions">
+    <label class="btn btn-outline" style="cursor:pointer">
+      Load .txt<input type="file" accept=".txt" id="fileInput" style="display:none">
+    </label>
+    <button class="btn btn-green" id="exportBtn" style="display:none" onclick="exportFile()">Export</button>
+  </div>
+</div>
+
+<!-- ── Content ── -->
+<div class="content">
+
+  <!-- ===== EDITOR ===== -->
+  <div id="editorView">
+    <div class="drop-zone" id="editorDrop">
+      <div class="dz-icon">📄</div>
+      <div style="font-size:1rem;font-weight:600">Drop a .txt level file here</div>
+      <div style="font-size:0.82rem">or click <strong>Load .txt</strong> above</div>
+    </div>
+  </div>
+
+  <!-- ===== PLAYER ===== -->
+  <div id="playerView">
+    <div class="play-empty" id="playEmpty">
+      <div class="pe-icon">🔤</div>
+      <div class="pe-text">No level loaded</div>
+      <div class="pe-sub">Load a .txt file or build one in Edit mode</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── Win overlay ── -->
+<div id="winOverlay">
+  <div class="win-card">
+    <div class="win-emoji">🎉</div>
+    <div class="win-title">You won!</div>
+    <div class="win-time" id="winTime"></div>
+    <div class="win-sub"  id="winSub"></div>
+    <button class="btn btn-accent" style="margin-top:8px" onclick="replayLevel()">Play Again</button>
+    <button class="btn btn-outline" onclick="switchMode('edit');document.getElementById('winOverlay').classList.remove('show')">Back to Editor</button>
+  </div>
+</div>
+
+<script>
+// ── Dictionary (common English words 3-8 letters) ───────────────────────────
+const DICT = new Set(
+`ace act add age ago aid aim air ale all and ant any ape arc are arm art ask ate axe bag ban bar bat bay bed beg bet bid big bit bow box boy bud bug bun bus but buy cab can cap car cat cod cop cow cry cup cut day den did dig dot dry ear eat egg ego elf elk elm end era eve eye fan far fat fee few fit fix fly fog for fox fun fur gap gas gel gem get gnu god got gum gun gut had ham has hat hay hen hid him hop hot hub hue hug hum ice ill imp ink inn ion ivy jam jar jaw jet joy jug kid kin kit lab lag lap law lay led leg let lip lit log lot low lug mad map mat men mob mud mug nap net nil nod nor now oak oar oat odd oil old owe owl own pad pan paw pay pea pen pet pie pig pin pit pod pop pot pub pun put ram ran rap rat raw ray red rid rig rim rip rob rod rot row rub rug rum run sap sat saw say sea set shy sin sip sit ski sky sob son spa spy sub sum sun tab tan tap tar tax tea ten tie tin tip toe ton top toy try tub tug van vat via vow wad war web wed wet who wig win wit woe won woo yak yam yew yen yet zoo zap
+able ache acid acre aged aide aims airs arch area arms army atom aunt back bade bags bail bait bake bale ball balm band bane bang bank bare bark barn base bash bask bass bath bead beam bean bear beat beef beer bell belt bend best bill bind bird bite bled blob blow blue boat body bold bolt bone book boom born both bout bowl brew brow buck bulk bull bump burn bush cage cake call calm came cane cape card care cart case cash cast cave cell cent chat chin chip chop cite city clay clip clot club clue coal coat coil coin cold cone cook cool core corn cost crab cube curl damp dare dark dart dash date dawn dead deal dear debt deck deed deer dent desk dial dice dine dire disk dive dock dome done door dose dove down drag draw drew drip drop drum duck duel dump dusk dust each earl earn ease east edge else emit ends epic face fact fail fair fall fame farm fast fate fawn fear feat feed feel feet felt fend fern file fill film find fine fire fish fist flag flat flaw flea fled flew flip flow foam foal fond font food fool foot fork form fort four fowl fray free frog from fuel full fume fund fury fuse gale game gash gate gave gaze gear gild gill gird girl give glad glow glue gnaw goat gold golf gone gown grab grin grip grit grow gull gulp hack hail hair half hall halt hand hang hard hare harm harp hate have hawk head heal heap hear heat heel held help here hewn high hike hill hilt hire hive hold hole home hone hood hook hope horn host hour hull hump hung hunt husk icon idea idle inch into iris isle jail jest joke jolt junk just keen keep keys kick kill kind king kiss kite knot know lace lack lame lamp lard lark lash lass last lawn lead leaf lean leap lend liar lies life lift like lime limp line link lion list live load loaf loan lock loft lone long look lore lose loss lost love lure lurk mace made maid main mane many mare mark mars mast mate meal mean meat mere mesh mild milk mill mime mind mine mint mire miss mist mode mold mole mood moor more moth move much mule muse must myth nail name nape navy nest news next nice nine node none norm nose note noun numb oath obey once only open oral oven over pace pack page paid pair pale palm pang pant park part pass past path peak peel peer pelt pest pick pier pile pill pity plan plod plot plow plum poem poet poke pond pore pose post pour pray prey prim prod pull pump pure push rail rain rake ramp rank rant rash rate real reap reel rein rely rend rent rich ride rife ring riot rise robe rock rode roof rook room root rope rose rote rove rude rule rump rush rust sage said sail sake salt same sand sane sang sash save scan scar seam seat seed seek seem seen self sell send sent shin ship shoe shop shot show shut sick side sigh silk silt sing sink skin skip slam slap sled slim slip slow slug slum some song soot sort soul soup sour span spar spin spit spot spur stab star step stew stir stop stub stun such suit sung sunk sure swam swim tale tall tame tang task teal tear tell term test than them then thin tide tied till tilt time toad toil toll tomb tone tons tool town trek trim trio trip trod true tube tuck tune turf turn twig ugly undo unit upon used vale vane vast vein very vest view vine void wade wail wait wake wand wane ward warn wary wash wasp wave weak weed week weld well went were west when wile will wilt wind wine wing wish wisp wolf wood wool word wore work worm worn wren yawn yell yoke your zeal zero zest zone zoom
+abbey abide abode abort above abuse abyss aches adapt adept adult after agile agony agree ahead aisle alert algae alien align alive allay aloft alone along aloud amaze amble amino ample amuse angel anger angle angry annex annoy apple apply apron areas arise armed armor arose array aster attic audio audit avert avian avoid await awake award aware awful badly baker batch bathe beach beard belle bench berry birth bison blade blank blast blaze bleat bleed blend bless blind bloat block blood bloom blown blues blunt board boast booth bored bough bound brace braid brash brave bream breed bribe brief bring brisk broke brook brood brown brush build built bulge bumpy burly bushy cabin camel candy carry cedar chant cheap cheer chess chief child chord chore cigar civic civil claim clang clash class clean clear climb clock clone clown cobra cocoa count court cover craft crane creak creed creep crest crime crisp cross crowd crown cruel crush crypt curly curve cycle daily daisy dance dazed dealt death decoy dense depot depth derby devil dirty diver dizzy dodge doing dolly donut doubt dread drift drink drive drone drove druid dwarf dwelt eagle eager early earth eight elder elite emote empty enact enemy enjoy enter equal equip erase error evade every evoke exact excel exile exist extra fable falls fancy farce fatal feast ferry fever fewer fiend fiery fifth fifty fight filth final first flank flash flock flood flour fluid flunk foamy focus foggy folly force forge forte forth forum found fraud fresh frill frown froze fruit fully funny gable games gauze gecko ghost giant given glare gleam glean glide glint gloom gloss glove goals goose grace grade grain grand grant grasp gravy graze great greed green greet grief gripe groom grope group grove grown gruel gruff guise gusto hasty haste haven heart heavy hence herbs heron hinge hippo hitch hobby holly homes honor horde horse hotel hound hover human humid humor hurry hyena image imply inane inept infer inlet inner input inter intro ivory jewel joust judge juicy jumbo knave kneel knife knock known labor lapse large laser later lathe leafy learn lease leech legal level light liner lingo liter lithe liver lives local lofty logic lotus louse lousy loyal lucid lumpy lusty lying macaw mango mania manly manor maple march marsh match maybe mayor media mercy merit metal might minor mirth miser mixer model money monk month moose moral motto mourn movie muddy musky musty music naval nervy night nippy noisy nomad north nudge nymph oaken oasis often olive onset opera orbit order otter ought outer oxide ozone paddy paint panic pansy papal party petal phase phony piano pilot pitch pixel pizza place plain plane plant plaza plead pleat plumb plume plunk plush poker polar porch prism prank prawn pride prime print prior probe prone prong prose proud prove prowl pupil purge queen query quick quiet quill quite quota rabbi rabid radar raspy raven realm reign relay relax repay repel risky rivet robin rocky rouge rover rowan royal rugby ruler rusty sadly safer saint sandy saucy scald scalp scene scent scorn scour scout screw scrub seize serum seven shade shady shaft shame shape share shark sharp sheen sheep sheer shelf shell shift shine shiny shirk shirt shock shoes short shout showy shrug shrub sigma siren sixth sixty sized skirt skull slain slate sleek sleep sleet slide sling slink slope sloth slump smart smash smear smile smite smoke snake snare snarl sneak snore snout snowy sober spade spare spark spear speck spend spill spray spree squad squat squid stack stain stale stalk stall stamp stand stare stark start stash stave steal steam steel steep steer stern stick stiff sting stoic stone stony stoop store stork storm story stout stove strap straw stray strip stump stunk stunt sugar sunny surge surly swamp swear sweat sweep sweet swell swept swirl sword swore sworn talon taunt taste teach tawny tense theme thief thing think thorn those three threw tiger timid title toast today totem towel tower toxic trace track trail train trait trawl trend tribe trick tried trill tripe trite troll troop troth trout truly trump trust truth tuber tulip tumor tutor twang tweed twice twill twine twist ultra uncle undue unify union untie until upper using usual utter vague valid valor value valve vault venal verge verse vigor viral viper visor vista vivid vixen vodka voice voter vouch vowel wager waltz waste watch water weary weave weedy weird whale wheat wheel where which while whirl white whole whose witch witty woman women world worst worth wrath wrist wrote yearn young youth zebra
+acorn action afraid albeit almost always amidst animal answer appear arctic around arouse arrest arrive assert attach attack attain barely battle beauty belief belong beside bestow beyond bridge bright broken brutal burden butter button canary cannon castle census chance change charge chrome circle circus clover coarse coffee colony combat commit copper couple course cowboy cradle credit cringe crisis crocus crying curate custom dagger damage danger dazzle deadly decide defend delays desert detail devote differ digest dismal divide donkey double dragon dreary driven drought during easily effort either empire enable endure engage enough escape estate evolve exceed excite export extend fabric fairer famine fellow fenced ferret fierce finger finite fixing flawed flight floods forest formal foster frozen fringe fungus gallop gamble garden garlic gentle gloomy glower golden govern gravel grieve guilty hamlet handle harbor harder harden hassle hasten haunts heaven helmet herald hidden hoarse hooves however humble hunger hurdle hustle ignite immune impact impede impose incite indent innate insane insult intact intend invent ironic island jangle jargon jungle justice kernel kidnap knight knives lament latest launch lawful lessen linear linger liquid lizard lonely losing luxury madden manage marble market marvel meddle median menace mirror mishap mobile modest moment mortal mortar mostly murder mutant mutton nature needle negate nettle nimble normal notice nuzzle object offend office onward oppose origin parrot peddle pester pirate placid plague plunge ponder portal potion potter preach prefer pretty priest prison profit prompt punish puppet purify quaint quarry ragged rarely rather ravage reader really reason record refuge relate remark remote render rescue return reveal reward riddle rivers robust rumble rugged saddle safety savage scheme scorch screen scroll severe shadow shiver simple single sister slight social soften solemn sphere spiral spooky spring sprint stable stride strike string subtle suitor summer summit supply surely survey tangle temple tender terror thorny thread thrive throne thrust tickle timber timely tongue tremor trifle trophy tundra tunnel unable unfold unique unkind unlock untold unveil useless varied velvet wander warmth weapon weaver wicked winter wisdom wonder wooden worthy wriggle yellow zealous
+abandon account achieve acquire address advance adverse already ancient another anxious appoint arrange assault attempt attract awesome balance bandage battery because blossom breathe capable capital capture catalog century certain channel chapter charity clarify clearly climate climbing coating collect colored comfort command compose concern conduct confirm consist contain contend control convert correct counsel country courage crystal curious customs dealing declare defense deflect despite develop devoted digital discern dismiss display distant disturb divided dormant dynamic earnest eclipse edition elevate enchant endless enemies enjoyed envelop eternal examine excited exclude exhaust explain explore express extreme fiction finally foreign forever forward freedom gateway general glimpse glowing gorilla gradual greater habitat history horizon husband illicit imagine improve incline include indulge inquire install intense involve isolate journey kingdom knowing lantern largest lateral leading library limited literal located logical loyalty machine magical managed mapping married massive maximum meaning measure mention message million missing mixture monitor morning mystery natural network neutral noticed nursery obvious organic outrage outside painful partial patient pattern perfect perform perhaps portray problem process produce project promote qualify quality radiant rapidly reality receive reflect require respect restore setting seventh sharing silence similar sincere soldier somehow sorcery special spirits spotted springs started station stories strange sustain swollen tactics teacher theorem thermal thicket thought thunder tightly towards trusted twilight typical unusual upgrade utility various village warrior welcome western winding wistful witness wonders wrapped wrestle younger`.trim().split(/\s+/).filter(w=>w.length>=3).map(w=>w.toUpperCase())
+);
+
+// ── Bonus scanner ────────────────────────────────────────────────────────────
+const DIR_LABEL = {'0,1':'→','0,-1':'←','1,0':'↓','-1,0':'↑','1,1':'↘','1,-1':'↙','-1,1':'↗','-1,-1':'↖'};
+
+function scanBonus(grid, targetWords) {
+  const targets = new Set(targetWords.map(w => w.toUpperCase()));
+  const R = grid.length, C = grid[0]?.length ?? 0;
+  const seen = new Set();
+  const results = [];
+  for (let r = 0; r < R; r++) {
+    for (let c = 0; c < C; c++) {
+      for (const [dr, dc] of DIRS8) {
+        let word = '', nr = r, nc = c;
+        const cells = [];
+        while (nr >= 0 && nr < R && nc >= 0 && nc < C) {
+          word += grid[nr][nc];
+          cells.push({r: nr, c: nc});
+          if (word.length >= 3 && DICT.has(word) && !targets.has(word) && !seen.has(word)) {
+            seen.add(word);
+            results.push({ word, cells: [...cells], dir: DIR_LABEL[`${dr},${dc}`] || '?' });
+          }
+          nr += dr; nc += dc;
+        }
+      }
+    }
+  }
+  return results.sort((a, b) => b.word.length - a.word.length || a.word.localeCompare(b.word));
+}
+
+// ── Difficulty calculator ────────────────────────────────────────────────────
+function calculateDifficulty(grid, words) {
+  const R = grid.length, C = grid[0]?.length ?? 0;
+  const B = R * C;                          // board letters
+  if (!words.length || !B) return null;
+
+  // ── IWD: group words by length ──────────────────────────────────────────
+  const groups = {};
+  words.forEach(w => { groups[w.length] = (groups[w.length] || 0) + 1; });
+  let wd = 0;
+  const iwdRows = Object.entries(groups)
+    .sort((a, b) => +a[0] - +b[0])
+    .map(([len, cnt]) => {
+      const iwd = cnt * (B / +len);
+      wd += iwd;
+      return { len: +len, cnt, perWord: +(B / +len).toFixed(1), iwd: +iwd.toFixed(1) };
+    });
+
+  // ── Find each word & detect direction ───────────────────────────────────
+  const cellUse = {};
+  const wordMeta = words.map(word => {
+    const cells = eFindWord(grid, word);
+    if (!cells) return { word, dir: null };
+    const dr = cells.length > 1 ? Math.sign(cells[1].r - cells[0].r) : 0;
+    const dc = cells.length > 1 ? Math.sign(cells[1].c - cells[0].c) : 0;
+    const dir = dr === 0 && dc === 1  ? 'horizontal'
+              : dr === 0 && dc === -1 ? 'reversed'
+              : dc === 0              ? 'vertical'
+              :                         'diagonal';
+    cells.forEach(({r,c}) => { const k=`${r},${c}`; cellUse[k]=(cellUse[k]||0)+1; });
+    return { word, dir };
+  });
+
+  const placed = wordMeta.filter(w => w.dir);
+  const T = placed.length || 1;
+  const cnt = {
+    horizontal: placed.filter(w => w.dir === 'horizontal').length,
+    reversed:   placed.filter(w => w.dir === 'reversed').length,
+    vertical:   placed.filter(w => w.dir === 'vertical').length,
+    diagonal:   placed.filter(w => w.dir === 'diagonal').length,
+  };
+  const sharedCells = Object.values(cellUse).filter(v => v > 1).length;
+
+  // ── Factor definitions ──────────────────────────────────────────────────
+  const FACTORS = [
+    { key:'Hof', icon:'→', label:'Horizontal',     val:-0.05, n: cnt.horizontal, note:'easiest direction'   },
+    { key:'Rf',  icon:'←', label:'Reversed',       val: 0.40, n: cnt.reversed,   note:'right-to-left words' },
+    { key:'Vf',  icon:'↕', label:'Vertical',       val: 0.10, n: cnt.vertical,   note:'up/down words'       },
+    { key:'Df',  icon:'↗', label:'Diagonal',       val: 0.20, n: cnt.diagonal,   note:'diagonal words'      },
+    { key:'Sd',  icon:'◈', label:'Shared Letters', val: 0.05, n: sharedCells,    note:'crossing cells', ofCells: true },
+    { key:'Mf',  icon:'?', label:'Mystery Words',  val: 0.30, n: 0,              note:'first letter shown'  },
+    { key:'Hf',  icon:'👁',label:'Hidden Words',   val: 0.70, n: 0,              note:'whole word hidden'   },
+    { key:'Mwf', icon:'📖',label:'Mystery WSJ',    val: 0.25, n: 0,              note:'WSJ mystery type'    },
+    { key:'Bf',  icon:'🦋',label:'Butterfly Words',val: 0.25, n: 0,              note:'butterfly mechanic'  },
+  ];
+
+  let factorSum = 0;
+  const activeFactors = [];
+  FACTORS.forEach(f => {
+    const contrib = f.ofCells
+      ? f.val * (f.n / B)
+      : f.val * (f.n / T);
+    if (f.n > 0) {
+      factorSum += contrib;
+      activeFactors.push({ ...f, contrib: +contrib.toFixed(4) });
+    }
+  });
+
+  const finalScore = Math.round(wd * (1 + factorSum));
+  const LEVELS = [
+    { max: 80,  label: 'Easy',   color: '#27ae60' },
+    { max: 180, label: 'Medium', color: '#f39c12' },
+    { max: 320, label: 'Hard',   color: '#e74650' },
+    { max: Infinity, label: 'Expert', color: '#9b59b6' },
+  ];
+  const { label, color } = LEVELS.find(l => finalScore < l.max);
+
+  return {
+    R, C, B, wd: +wd.toFixed(1), iwdRows,
+    cnt, sharedCells, T,
+    activeFactors, factorSum: +factorSum.toFixed(4),
+    finalScore, label, color,
+  };
+}
+
+// ── Difficulty HTML builders ─────────────────────────────────────────────────
+function diffPanelHTML(d) {
+  if (!d) return '<div style="color:var(--muted);font-size:0.78rem;padding:6px">Load a level to see difficulty</div>';
+
+  const iwdRows = d.iwdRows.map(r =>
+    `<tr>
+      <td>${r.len}L</td>
+      <td>×${r.cnt} words</td>
+      <td>${d.B} ÷ ${r.len} = ${r.perWord}</td>
+      <td>${r.iwd}</td>
+    </tr>`
+  ).join('');
+
+  const factorRows = d.activeFactors.map(f => {
+    const sign = f.val > 0 ? '+' : '';
+    const contribSign = f.contrib > 0 ? '+' : '';
+    const col = f.val > 0 ? '#e74650' : '#27ae60';
+    return `<div class="diff-factor">
+      <span class="diff-factor-icon">${f.icon}</span>
+      <span class="diff-factor-name">${f.label}</span>
+      <span class="diff-factor-cnt">×${f.n}</span>
+      <span class="diff-factor-pct" style="color:${col}">${sign}${(f.val*100).toFixed(0)}%</span>
+      <span class="diff-factor-contrib">${contribSign}${(f.contrib*100).toFixed(1)}%</span>
+    </div>`;
+  }).join('');
+
+  const multiplier = (1 + d.factorSum).toFixed(3);
+  return `
+    <div class="diff-top">
+      <span class="diff-lbl">Difficulty</span>
+      <span class="diff-badge" style="background:${d.color}">${d.label}</span>
+    </div>
+    <div style="display:flex;gap:16px;margin-bottom:10px">
+      <div>
+        <div class="diff-score-val" style="color:${d.color}">${d.finalScore}</div>
+        <div class="diff-sub">difficulty score</div>
+      </div>
+      <div style="flex:1">
+        <div style="font-size:0.78rem;font-weight:700">${d.R}×${d.C} board</div>
+        <div class="diff-sub">${d.B} total letters</div>
+        <div class="diff-sub">${d.T} words placed</div>
+      </div>
+    </div>
+    <hr class="diff-sep">
+    <div class="diff-section-hd">Word Difficulty (WD)</div>
+    <div class="diff-sub" style="margin-bottom:5px">IWD = word_count × (board_letters ÷ word_length)</div>
+    <table class="diff-table">
+      ${iwdRows}
+      <tr class="wd-total"><td colspan="3">WD Total</td><td>${d.wd}</td></tr>
+    </table>
+    <hr class="diff-sep">
+    <div class="diff-section-hd">Positioning Factors</div>
+    ${factorRows || '<div class="diff-sub">No words placed yet</div>'}
+    <div class="diff-final-row">
+      <span class="diff-final-eq">${d.wd} × (1 ${d.factorSum>=0?'+':''}${(d.factorSum*100).toFixed(1)}%) = ${d.wd} × ${multiplier}</span>
+      <span class="diff-final-num" style="color:${d.color}">${d.finalScore}</span>
+    </div>`;
+}
+
+function diffStripHTML(d) {
+  if (!d) return '';
+  return `
+    <span class="diff-badge" style="background:${d.color}">${d.label}</span>
+    <span>${d.R}×${d.C} board</span>
+    <span>·</span>
+    <span>${d.T} words</span>
+    <span>·</span>
+    <span class="diff-strip-detail" onclick="showDiffModal()" title="View breakdown">
+      Score: <strong style="color:${d.color}">${d.finalScore}</strong> ℹ
+    </span>`;
+}
+
+function showDiffModal() {
+  const grid = G.grid.length ? G.grid : P.grid;
+  const words = G.grid.length ? G.words : P.words;
+  const d = calculateDifficulty(grid, words);
+  const overlay = document.createElement('div');
+  overlay.className = 'diff-modal-overlay';
+  overlay.innerHTML = `<div class="diff-modal">
+    <button class="diff-modal-close" onclick="this.closest('.diff-modal-overlay').remove()">✕</button>
+    ${diffPanelHTML(d)}
+  </div>`;
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+}
+
+// ── Shared colours ──────────────────────────────────────────────────────────
+const COLORS = [
+  '#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#c77dff',
+  '#ff9f43','#00d2d3','#ff6348','#a29bfe','#55efc4',
+  '#fd79a8','#74b9ff','#81ecec','#fab1a0','#7bed9f',
+];
+
+// ── Mode ────────────────────────────────────────────────────────────────────
+let currentMode = 'edit';
+
+function switchMode(mode) {
+  currentMode = mode;
+  document.getElementById('tabEdit').classList.toggle('active', mode === 'edit');
+  document.getElementById('tabPlay').classList.toggle('active', mode === 'play');
+  document.getElementById('editorView').style.display     = mode === 'edit' ? 'flex'   : 'none';
+  document.getElementById('playerView').style.display     = mode === 'play' ? 'flex'   : 'none';
+  document.getElementById('editHeaderMeta').style.display = mode === 'edit' ? 'flex'   : 'none';
+  document.getElementById('playHeaderInfo').style.display = mode === 'play' ? 'flex'   : 'none';
+  document.getElementById('exportBtn').style.display      = mode === 'edit' && G.grid.length ? '' : 'none';
+
+  if (mode === 'play') {
+    // Sync level from editor and start game
+    if (G.grid.length && G.words.length) {
+      const level = {
+        grid: G.grid.map(r => [...r]),
+        words: [...G.words],
+        meta: {...G.meta},
+      };
+      startGame(level);
+    } else {
+      renderPlayEmpty();
+    }
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// EDITOR
+// ══════════════════════════════════════════════════════════════════════════════
+const DIRS8 = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
+
+let G = {
+  grid: [], words: [], meta: { id:'', theme:'', name:'' },
+  active: null, placing: null, placeStart: null, foundMap: {},
+};
+
+function eRows() { return G.grid.length; }
+function eCols() { return G.grid[0]?.length ?? 0; }
+
+function eFindWord(grid, word) {
+  const R = grid.length, C = grid[0]?.length ?? 0;
+  for (let r = 0; r < R; r++)
+    for (let c = 0; c < C; c++)
+      for (const [dr,dc] of DIRS8) {
+        let ok = true; const cells = [];
+        for (let i = 0; i < word.length; i++) {
+          const nr = r+dr*i, nc = c+dc*i;
+          if (nr<0||nr>=R||nc<0||nc>=C||grid[nr][nc]!==word[i]){ok=false;break;}
+          cells.push({r:nr,c:nc});
+        }
+        if (ok) return cells;
+      }
+  return null;
+}
+
+function eFindAll() {
+  G.foundMap = {};
+  for (const w of G.words) G.foundMap[w] = eFindWord(G.grid, w);
+}
+
+function eRender() {
+  const view = document.getElementById('editorView');
+  if (!G.grid.length) {
+    view.innerHTML = `<div class="drop-zone" id="editorDrop">
+      <div class="dz-icon">📄</div>
+      <div style="font-size:1rem;font-weight:600">Drop a .txt level file here</div>
+      <div style="font-size:0.82rem">or click <strong>Load .txt</strong> above</div>
+    </div>`;
+    bindEditorDrop();
+    document.getElementById('exportBtn').style.display = 'none';
+    document.getElementById('editHeaderMeta').style.display = currentMode === 'edit' ? 'flex' : 'none';
+    return;
+  }
+
+  const R = eRows(), C = eCols();
+  // Compute a comfortable cell size for editor
+  const maxW = Math.min(window.innerWidth - 296, 560);
+  const maxH = window.innerHeight - 130;
+  const sz = Math.max(32, Math.min(48, Math.floor((maxW-(C-1)*4)/C), Math.floor((maxH-(R-1)*4)/R)));
+  document.documentElement.style.setProperty('--sz', sz+'px');
+
+  if (currentMode === 'edit') {
+    document.getElementById('exportBtn').style.display = '';
+    document.getElementById('metaId').value    = G.meta.id;
+    document.getElementById('metaTheme').value = G.meta.theme;
+    document.getElementById('metaSize').value  = `${R}x${C}`;
+    document.getElementById('metaName').value  = G.meta.name;
+  }
+
+  // Highlight set
+  const hlSet = new Set();
+  let hlColor = null;
+  if (G.active !== null) {
+    const w = G.words[G.active];
+    const cells = G.foundMap[w];
+    hlColor = COLORS[G.active % COLORS.length];
+    if (cells) cells.forEach(({r,c}) => hlSet.add(`${r},${c}`));
+  }
+  const dimMode = G.active !== null;
+  const found   = G.words.filter(w => G.foundMap[w]).length;
+
+  view.innerHTML = `
+    <div class="grid-panel">
+      <div class="grid-wrap">
+        <div class="egrid" id="egridEl" style="grid-template-columns:repeat(${C},var(--sz))"></div>
+      </div>
+      <div class="grid-controls">
+        <span>Rows</span>
+        <input class="ctrl-num" type="number" id="ctrlR" value="${R}" min="3" max="25">
+        <span>Cols</span>
+        <input class="ctrl-num" type="number" id="ctrlC" value="${C}" min="3" max="25">
+        <button class="ctrl-btn" onclick="eResize()">Resize</button>
+        <button class="ctrl-btn" onclick="eFillRandom()">Fill gaps</button>
+        <button class="ctrl-btn" onclick="eClear()">Clear</button>
+      </div>
+      ${G.placing ? `<div class="placing-banner">
+        ${G.placeStart ? 'Click <strong>end cell</strong>' : 'Click <strong>start cell</strong>'} for
+        <strong style="color:#fff">${G.placing.word}</strong>
+        <button class="cancel-btn" onclick="eCancelPlace()">Cancel</button>
+      </div>` : ''}
+      <div class="diff-panel" id="eDiffPanel">
+        ${diffPanelHTML(calculateDifficulty(G.grid, G.words))}
+      </div>
+    </div>
+    <div class="words-col">
+      <div class="col-header">
+        <span>Target Words</span>
+        <span style="margin-left:auto;font-size:0.75rem;color:${found===G.words.length?'#27ae60':'#e74650'};font-weight:800">${found}/${G.words.length}</span>
+      </div>
+      <div class="word-list-wrap" id="eWordList"></div>
+      <div class="add-row">
+        <input class="add-input" id="eAddInput" placeholder="Add word…" maxlength="30"
+          onkeydown="if(event.key==='Enter')eAddWord()">
+        <button class="btn btn-accent" style="padding:7px 11px" onclick="eAddWord()">+</button>
+      </div>
+    </div>
+    <div class="bonus-col">
+      <div class="col-header">
+        <span>Bonus Words</span>
+        <button class="bonus-scan-btn" onclick="eRunBonus()">Scan</button>
+        <span class="bonus-count" id="eBonusCount"></span>
+      </div>
+      <div class="bonus-list" id="eBonusList" style="flex:1;overflow-y:auto;padding:8px">
+        <div class="bonus-empty">Click Scan to find hidden English words</div>
+      </div>
+    </div>
+  `;
+
+  // Build grid cells
+  const gridEl = document.getElementById('egridEl');
+  for (let r = 0; r < R; r++) {
+    for (let c = 0; c < C; c++) {
+      const inp = document.createElement('input');
+      inp.type = 'text'; inp.maxLength = 1;
+      inp.className = 'ecell';
+      inp.value = (G.grid[r][c]||'').trim();
+      inp.dataset.r = r; inp.dataset.c = c;
+      const key = `${r},${c}`;
+      if (hlSet.has(key)) {
+        inp.classList.add('ehl');
+        inp.style.background = hlColor; inp.style.color = '#111';
+      } else if (dimMode) {
+        inp.classList.add('edim');
+      }
+      inp.addEventListener('keydown', eOnCellKey);
+      inp.addEventListener('input',   eOnCellInput);
+      inp.addEventListener('focus',   e => e.target.select());
+      inp.addEventListener('click',   () => eOnCellClick(r, c, inp));
+      gridEl.appendChild(inp);
+    }
+  }
+
+  eRenderWordList();
+}
+
+function eRefreshDiff() {
+  const el = document.getElementById('eDiffPanel');
+  if (el) el.innerHTML = diffPanelHTML(calculateDifficulty(G.grid, G.words));
+}
+
+function eRenderWordList() {
+  const wrap = document.getElementById('eWordList');
+  if (!wrap) return;
+  if (!G.words.length) { wrap.innerHTML = '<div class="no-words">No words yet</div>'; return; }
+  wrap.innerHTML = '';
+  for (let i = 0; i < G.words.length; i++) {
+    const w = G.words[i], ok = !!G.foundMap[w];
+    const color = COLORS[i % COLORS.length];
+    const item = document.createElement('div');
+    item.className = 'word-item' + (G.active === i ? ' active' : '');
+    item.innerHTML = `
+      <div class="word-dot" style="background:${color}"></div>
+      <div class="word-text">${w}</div>
+      ${!ok ? `<button class="place-btn" onclick="eStartPlace(${i},event)">Place</button>` : ''}
+      <div class="word-badge ${ok?'badge-ok':'badge-miss'}">${ok?'✓':'✗'}</div>
+      <button class="word-del" onclick="eRemoveWord(${i},event)">×</button>`;
+    item.addEventListener('click', () => eSelectWord(i));
+    wrap.appendChild(item);
+  }
+}
+
+function eOnCellInput(e) {
+  const r = +e.target.dataset.r, c = +e.target.dataset.c;
+  const v = e.target.value.replace(/[^a-zA-Z]/g,'').slice(-1).toUpperCase();
+  e.target.value = v;
+  G.grid[r][c] = v || ' ';
+  eFindAll();
+  eRenderWordList();
+  // update the found/total badge in the col-header
+  const colHdr = document.querySelector('.words-col .col-header span:last-of-type');
+  if (colHdr) { const f=G.words.filter(w=>G.foundMap[w]).length; colHdr.textContent=`${f}/${G.words.length}`; colHdr.style.color=f===G.words.length?'#27ae60':'#e74650'; }
+  eRefreshDiff();
+  if (v) eMoveCell(r, c, 0, 1);
+}
+
+function eOnCellKey(e) {
+  const r = +e.target.dataset.r, c = +e.target.dataset.c;
+  const map = {'ArrowRight':[0,1],'ArrowLeft':[0,-1],'ArrowDown':[1,0],'ArrowUp':[-1,0],'Tab':[0,e.shiftKey?-1:1],'Enter':[0,1]};
+  if (map[e.key]) { e.preventDefault(); eMoveCell(r, c, ...map[e.key]); }
+  if (e.key==='Backspace' && !e.target.value) { e.preventDefault(); G.grid[r][c]=' '; eMoveCell(r,c,0,-1); }
+}
+
+function eMoveCell(r, c, dr, dc) {
+  const nr = Math.max(0,Math.min(eRows()-1,r+dr)), nc = Math.max(0,Math.min(eCols()-1,c+dc));
+  const el = document.querySelector(`.ecell[data-r="${nr}"][data-c="${nc}"]`);
+  if (el) { el.focus(); el.select(); }
+}
+
+function eOnCellClick(r, c, el) {
+  if (!G.placing) return;
+  if (!G.placeStart) {
+    G.placeStart = {r, c};
+    el.style.boxShadow = '0 0 0 3px var(--accent)';
+    const b = document.querySelector('.placing-banner');
+    if (b) b.innerHTML = `Click <strong>end cell</strong> for <strong style="color:#fff">${G.placing.word}</strong> <button class="cancel-btn" onclick="eCancelPlace()">Cancel</button>`;
+  } else {
+    ePlaceWord(G.placing.word, G.placeStart.r, G.placeStart.c, r, c);
+  }
+}
+
+function ePlaceWord(word, r1, c1, r2, c2) {
+  const dr = Math.sign(r2-r1), dc = Math.sign(c2-c1);
+  if (dr===0 && dc===0) { eCancelPlace(); return; }
+  const endR = r1+dr*(word.length-1), endC = c1+dc*(word.length-1);
+  if (endR<0||endR>=eRows()||endC<0||endC>=eCols()) { alert(`Not enough space for "${word}" in that direction.`); return; }
+  for (let i=0;i<word.length;i++) G.grid[r1+dr*i][c1+dc*i] = word[i];
+  G.placing = null; G.placeStart = null;
+  eFindAll(); eRender();
+}
+
+function eStartPlace(idx, e)    { e.stopPropagation(); G.placing={word:G.words[idx],idx}; G.placeStart=null; G.active=null; eRender(); }
+function eCancelPlace()          { G.placing=null; G.placeStart=null; eRender(); }
+function eSelectWord(idx)        { G.active = G.active===idx ? null : idx; G.placing=null; eRender(); }
+function eAddWord() {
+  const inp = document.getElementById('eAddInput');
+  const v = inp.value.trim().toUpperCase().replace(/[^A-Z]/g,'');
+  if (!v || G.words.includes(v)) { inp.value=''; inp.focus(); return; }
+  G.words.push(v); inp.value=''; inp.focus(); eFindAll(); eRender();
+}
+function eRemoveWord(idx, e) {
+  e.stopPropagation(); G.words.splice(idx,1);
+  if (G.active===idx) G.active=null; else if (G.active>idx) G.active--;
+  eFindAll(); eRender();
+}
+function eResize() {
+  const nr=+document.getElementById('ctrlR').value, nc=+document.getElementById('ctrlC').value;
+  if (!nr||!nc) return;
+  G.grid = Array.from({length:nr},(_,r)=>Array.from({length:nc},(_,c)=>G.grid[r]?.[c]??' '));
+  eFindAll(); eRender();
+}
+function eFillRandom() {
+  const a='ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  for (let r=0;r<eRows();r++) for (let c=0;c<eCols();c++)
+    if (!G.grid[r][c]||!G.grid[r][c].trim()) G.grid[r][c]=a[Math.floor(Math.random()*26)];
+  eFindAll(); eRender();
+}
+function eClear() {
+  for (let r=0;r<eRows();r++) for(let c=0;c<eCols();c++) G.grid[r][c]=' ';
+  eFindAll(); eRender();
+}
+function eRunBonus() {
+  const results = scanBonus(G.grid, G.words);
+  const list = document.getElementById('eBonusList');
+  const count = document.getElementById('eBonusCount');
+  if (!list) return;
+  if (!results.length) {
+    list.innerHTML = '<div class="bonus-empty">No bonus words found</div>';
+    if (count) count.textContent = '';
+    return;
+  }
+  if (count) count.textContent = `${results.length} found`;
+  list.innerHTML = '';
+  // Store for highlight toggle
+  G._bonusResults = results;
+  G._bonusActive = null;
+  results.forEach((item, idx) => {
+    const el = document.createElement('div');
+    el.className = 'bonus-item';
+    el.innerHTML = `<span class="bonus-word">${item.word}</span><span class="bonus-dir">${item.dir}</span><span class="bonus-len">${item.word.length}L</span>`;
+    el.addEventListener('click', () => {
+      G._bonusActive = G._bonusActive === idx ? null : idx;
+      // Highlight cells
+      document.querySelectorAll('.ecell').forEach(c => {
+        c.style.background = ''; c.style.color = '';
+        c.classList.remove('ehl', 'edim');
+      });
+      document.querySelectorAll('.bonus-item').forEach(b => b.classList.remove('bhl'));
+      if (G._bonusActive !== null) {
+        el.classList.add('bhl');
+        const all = new Set(results[idx].cells.map(({r,c}) => `${r},${c}`));
+        document.querySelectorAll('.ecell').forEach(c => {
+          const key = `${c.dataset.r},${c.dataset.c}`;
+          if (all.has(key)) { c.style.background = '#f9ca24'; c.style.color = '#111'; }
+          else c.classList.add('edim');
+        });
+      }
+    });
+    list.appendChild(el);
+  });
+}
+
+function eNewLevel() {
+  G={grid:Array.from({length:9},()=>Array(10).fill(' ')),words:[],
+     meta:{id:String(Date.now()).slice(0,8),theme:'theme',name:'New Level'},
+     active:null,placing:null,placeStart:null,foundMap:{}};
+  eRender();
+}
+function exportFile() {
+  const id    = document.getElementById('metaId').value.trim()||'0';
+  const theme = document.getElementById('metaTheme').value.trim()||'theme';
+  const name  = document.getElementById('metaName').value.trim().replace(/\s+/g,'_')||'Level';
+  const size  = `${eRows()}x${eCols()}`;
+  const content = G.grid.map(r=>r.join('')).join('\n')+'\n\n'+G.words.join('\n')+'\n';
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content],{type:'text/plain'}));
+  a.download = `${id}-${theme}-${size}-${name}.txt`;
+  a.click();
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// PLAYER
+// ══════════════════════════════════════════════════════════════════════════════
+let P = {
+  grid:[], words:[], meta:{},
+  foundWords: new Map(),
+  bonusFound: new Map(),
+  dragging:false, startCell:null, curCells:[],
+  startTime:null, timerInt:null,
+};
+
+function pRows() { return P.grid.length; }
+function pCols() { return P.grid[0]?.length??0; }
+
+function renderPlayEmpty() {
+  const view = document.getElementById('playerView');
+  view.innerHTML = `<div class="play-empty">
+    <div class="pe-icon">🔤</div>
+    <div class="pe-text">No level loaded</div>
+    <div class="pe-sub">Load a .txt file or build one in <strong>Edit</strong> mode</div>
+  </div>`;
+  document.getElementById('playTitle').textContent = '';
+  document.getElementById('playTheme').textContent = '';
+  document.getElementById('playProgress').textContent = '';
+}
+
+function startGame(level) {
+  P.grid = level.grid; P.words = level.words; P.meta = level.meta;
+  P.foundWords = new Map(); P.bonusFound = new Map(); P.cheatOn = false;
+  P.dragging=false; P.startCell=null; P.curCells=[];
+  P.startTime = Date.now();
+  clearInterval(P.timerInt);
+  P.timerInt = setInterval(pTick, 1000);
+
+  const R = pRows(), C = pCols();
+  const maxW = Math.min(window.innerWidth-32, 560);
+  const maxH = window.innerHeight - 200;
+  const sz = Math.max(28, Math.min(52, Math.floor((maxW-(C-1)*4)/C), Math.floor((maxH-(R-1)*4)/R)));
+  document.documentElement.style.setProperty('--sz', sz+'px');
+
+  // Play header
+  document.getElementById('playTitle').textContent    = P.meta.name || `Level ${P.meta.id}` || 'Word Search';
+  const themeEl = document.getElementById('playTheme');
+  themeEl.textContent = P.meta.theme ? P.meta.theme.charAt(0).toUpperCase()+P.meta.theme.slice(1) : '';
+  themeEl.style.display = P.meta.theme ? '' : 'none';
+  pUpdateProgress();
+
+  const view = document.getElementById('playerView');
+  view.innerHTML = `
+    <div class="words-bar" id="pWordsBar"></div>
+    <div class="diff-strip" id="pDiffStrip"></div>
+    <div class="bonus-bar" id="pBonusBar" style="display:none">
+      <span class="bonus-bar-label">✦ Bonus</span>
+    </div>
+    <div class="play-grid-area">
+      <div class="pgrid" id="pgridEl" style="grid-template-columns:repeat(${C},var(--sz))"></div>
+    </div>
+    <div class="play-bar">
+      <div class="pstat"><div class="pstat-val" id="pStatFound">0</div><div class="pstat-lbl">Found</div></div>
+      <div class="pstat"><div class="pstat-val" id="pStatLeft">${P.words.length}</div><div class="pstat-lbl">Left</div></div>
+      <div class="pstat"><div class="pstat-val" id="pStatBonus" style="color:#f9ca24">0</div><div class="pstat-lbl">Bonus</div></div>
+      <div class="pstat"><div class="pstat-val" id="pStatTime">0:00</div><div class="pstat-lbl">Time</div></div>
+      <button class="cheat-btn" id="cheatBtn" onclick="toggleCheat()">👁 Cheat</button>
+    </div>
+  `;
+
+  // Word chips
+  const bar = document.getElementById('pWordsBar');
+  P.words.forEach((w,i) => {
+    const chip = document.createElement('div');
+    chip.className = 'word-chip'; chip.id = `pchip-${w}`; chip.textContent = w;
+    bar.appendChild(chip);
+  });
+
+  // Grid cells
+  const gridEl = document.getElementById('pgridEl');
+  for (let r=0;r<R;r++) for (let c=0;c<C;c++) {
+    const cell = document.createElement('div');
+    cell.className='pcell'; cell.id=`pc-${r}-${c}`;
+    cell.textContent=P.grid[r][c]||''; cell.dataset.r=r; cell.dataset.c=c;
+    cell.addEventListener('mousedown', e=>{e.preventDefault();pDragStart(r,c);});
+    cell.addEventListener('mouseenter',  ()=>{if(P.dragging)pDragMove(r,c);});
+    cell.addEventListener('touchstart',e=>{e.preventDefault();pDragStart(r,c);},{passive:false});
+    gridEl.appendChild(cell);
+  }
+
+  // Difficulty strip
+  const ds = document.getElementById('pDiffStrip');
+  if (ds) ds.innerHTML = diffStripHTML(calculateDifficulty(P.grid, P.words));
+
+  document.getElementById('winOverlay').classList.remove('show');
+}
+
+function replayLevel() {
+  document.getElementById('winOverlay').classList.remove('show');
+  startGame({ grid: P.grid, words: P.words, meta: P.meta });
+}
+
+// Drag
+function pDragStart(r,c){ P.dragging=true; P.startCell={r,c}; P.curCells=[{r,c}]; pApplySel(P.curCells); }
+function pDragMove(r,c){
+  if(!P.dragging||!P.startCell) return;
+  const {r:sr,c:sc}=P.startCell, dr=r-sr, dc=c-sc;
+  let snapDr=0,snapDc=0;
+  if(dr||dc){
+    const angle=Math.atan2(dr,dc)*180/Math.PI;
+    const sect=Math.round(angle/45);
+    const dirs=[[0,1],[1,1],[1,0],[1,-1],[0,-1],[-1,-1],[-1,0],[-1,1]];
+    [snapDr,snapDc]=dirs[((sect%8)+8)%8];
+  }
+  const R=pRows(),C=pCols(), steps=Math.max(Math.abs(dr),Math.abs(dc));
+  const cells=[];
+  for(let i=0;i<=steps;i++){
+    const nr=sr+snapDr*i,nc=sc+snapDc*i;
+    if(nr<0||nr>=R||nc<0||nc>=C) break;
+    cells.push({r:nr,c:nc});
+  }
+  if(cells.length!==P.curCells.length||cells.some((c2,i)=>c2.r!==P.curCells[i]?.r||c2.c!==P.curCells[i]?.c)){
+    pClearSel(); P.curCells=cells; pApplySel(cells);
+  }
+}
+function pDragEnd(){
+  if(!P.dragging) return;
+  P.dragging=false; pCheckWord(P.curCells); pClearSel(); P.curCells=[]; P.startCell=null;
+}
+function pApplySel(cells){ cells.forEach(({r,c})=>{ const el=document.getElementById(`pc-${r}-${c}`); if(el&&!el.classList.contains('pfound')) el.classList.add('pselect'); }); }
+function pClearSel(){ document.querySelectorAll('.pcell.pselect').forEach(el=>el.classList.remove('pselect')); }
+
+function pCheckWord(cells){
+  if(cells.length<2) return;
+  const fwd = cells.map(({r,c})=>P.grid[r]?.[c]??'').join('');
+  const rev = [...fwd].reverse().join('');
+  // Check target words first
+  const match = P.words.find(w=>(w===fwd||w===rev)&&!P.foundWords.has(w));
+  if(match){
+    P.foundWords.set(match,cells); pMarkFound(match,cells); pUpdateProgress();
+    if(P.foundWords.size===P.words.length) setTimeout(pShowWin,600);
+    return;
+  }
+  // Check bonus words (dictionary, not already found as bonus)
+  const bonusWord = [fwd,rev].find(w=>w.length>=3&&DICT.has(w)&&!P.bonusFound.has(w));
+  if(bonusWord){
+    P.bonusFound.set(bonusWord, cells);
+    pMarkBonus(bonusWord, cells);
+    return;
+  }
+  pFlashWrong(cells);
+}
+
+function toggleCheat() {
+  P.cheatOn = !P.cheatOn;
+  const btn = document.getElementById('cheatBtn');
+  if (btn) {
+    btn.textContent = P.cheatOn ? '🙈 Hide' : '👁 Cheat';
+    btn.classList.toggle('active', P.cheatOn);
+  }
+
+  if (P.cheatOn) {
+    // Highlight every unfound word in its color
+    P.words.forEach((word, idx) => {
+      if (P.foundWords.has(word)) return;
+      const cells = eFindWord(P.grid, word);
+      if (!cells) return;
+      const color = COLORS[idx % COLORS.length];
+      cells.forEach(({r, c}) => {
+        const el = document.getElementById(`pc-${r}-${c}`);
+        if (!el || el.classList.contains('pfound')) return;
+        el.classList.add('pcheat');
+        el.style.background   = color + '33';
+        el.style.borderColor  = color;
+        el.style.color        = color;
+        el.dataset.cheatWord  = word;
+      });
+      // Tint the chip too
+      const chip = document.getElementById(`pchip-${word}`);
+      if (chip) { chip.style.borderColor = color; chip.style.color = color; chip.dataset.cheat = '1'; }
+    });
+  } else {
+    clearCheat();
+  }
+}
+
+function clearCheat() {
+  document.querySelectorAll('.pcell.pcheat').forEach(el => {
+    el.classList.remove('pcheat');
+    el.style.background = ''; el.style.borderColor = ''; el.style.color = '';
+    delete el.dataset.cheatWord;
+  });
+  document.querySelectorAll('[data-cheat="1"]').forEach(el => {
+    el.style.borderColor = ''; el.style.color = ''; delete el.dataset.cheat;
+  });
+}
+
+function pMarkFound(word, cells){
+  const idx=P.words.indexOf(word), color=COLORS[idx%COLORS.length];
+  cells.forEach(({r,c})=>{
+    const el=document.getElementById(`pc-${r}-${c}`);
+    if(!el) return;
+    // Remove any cheat styling first
+    el.classList.remove('pcheat');
+    delete el.dataset.cheatWord;
+    el.classList.add('pfound','pfound-anim');
+    el.style.background=color; el.style.borderColor=color; el.style.color='#111';
+    setTimeout(()=>el.classList.remove('pfound-anim'),300);
+  });
+  const chip=document.getElementById(`pchip-${word}`);
+  if(chip){
+    chip.classList.add('found');
+    chip.style.background=color; chip.style.borderColor=color;
+    chip.style.color='#111'; delete chip.dataset.cheat;
+  }
+}
+function pFlashWrong(cells){ cells.forEach(({r,c})=>{ const el=document.getElementById(`pc-${r}-${c}`); if(el&&!el.classList.contains('pfound')){ el.classList.add('pwrong'); setTimeout(()=>el.classList.remove('pwrong'),380); } }); }
+
+function pMarkBonus(word, cells) {
+  // Tint cells gold briefly
+  cells.forEach(({r,c}) => {
+    const el = document.getElementById(`pc-${r}-${c}`);
+    if (!el || el.classList.contains('pfound')) return;
+    el.style.background = '#f9ca2440';
+    el.style.borderColor = '#f9ca24';
+    el.style.color = '#f9ca24';
+    setTimeout(() => {
+      if (!el.classList.contains('pfound')) {
+        el.style.background = ''; el.style.borderColor = ''; el.style.color = '';
+      }
+    }, 900);
+  });
+  // Add chip to bonus bar
+  const bar = document.getElementById('pBonusBar');
+  if (bar) {
+    bar.style.display = 'flex';
+    const chip = document.createElement('div');
+    chip.className = 'bonus-chip';
+    chip.textContent = word;
+    bar.appendChild(chip);
+  }
+  // Update stat
+  const sb = document.getElementById('pStatBonus');
+  if (sb) sb.textContent = P.bonusFound.size;
+  // Toast
+  showToast(`✦ ${word}`);
+}
+
+function showToast(msg) {
+  document.querySelectorAll('.bonus-toast').forEach(t => t.remove());
+  const t = document.createElement('div');
+  t.className = 'bonus-toast';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 1900);
+}
+
+function pUpdateProgress(){
+  const f=P.foundWords.size, t=P.words.length;
+  document.getElementById('playProgress').textContent = `${f} / ${t}`;
+  const sf=document.getElementById('pStatFound'); if(sf) sf.textContent=f;
+  const sl=document.getElementById('pStatLeft');  if(sl) sl.textContent=t-f;
+}
+function pTick(){
+  const el=document.getElementById('pStatTime'); if(!el) return;
+  const s=Math.floor((Date.now()-P.startTime)/1000), m=Math.floor(s/60);
+  el.textContent=`${m}:${(s%60).toString().padStart(2,'0')}`;
+}
+function pShowWin(){
+  clearInterval(P.timerInt);
+  const ms=Date.now()-P.startTime, s=Math.floor(ms/1000), m=Math.floor(s/60);
+  document.getElementById('winTime').textContent=`${m}:${(s%60).toString().padStart(2,'0')}`;
+  document.getElementById('winSub').textContent=`Found all ${P.words.length} words in ${P.meta.name||'this level'}!`;
+  document.getElementById('winOverlay').classList.add('show');
+}
+
+// Touch move (player)
+document.addEventListener('touchmove', e=>{
+  if(!P.dragging||currentMode!=='play') return;
+  e.preventDefault();
+  const t=e.touches[0], el=document.elementFromPoint(t.clientX,t.clientY);
+  if(el?.dataset?.r!==undefined) pDragMove(+el.dataset.r,+el.dataset.c);
+},{passive:false});
+document.addEventListener('mouseup',  pDragEnd);
+document.addEventListener('touchend', pDragEnd);
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SHARED FILE LOADING
+// ══════════════════════════════════════════════════════════════════════════════
+function parseFile(text, filename){
+  const lines=text.split(/\r?\n/); const grid=[],words=[]; let blank=false;
+  for(const line of lines){
+    if(line.trim()===''){blank=true;continue;}
+    if(!blank) grid.push(line.trim().toUpperCase().split(''));
+    else if(line.trim()) words.push(line.trim().toUpperCase());
+  }
+  let meta={id:'',theme:'',name:''};
+  if(filename){
+    const base=filename.replace(/\.txt$/i,''), parts=base.split('-');
+    if(parts.length>=4){ meta.id=parts[0]; meta.theme=parts[1]; meta.name=parts.slice(3).join(' ').replace(/_/g,' '); }
+    else meta.name=base;
+  }
+  return {grid,words,meta};
+}
+
+function loadFile(file){
+  new FileReader().onload = null; // noop
+  const reader = new FileReader();
+  reader.onload = e=>{
+    const data = parseFile(e.target.result, file.name);
+    if(!data.grid.length){alert('Could not parse file.');return;}
+    // Load into editor state
+    G.grid=data.grid; G.words=data.words; G.meta=data.meta;
+    G.active=null; G.placing=null; G.placeStart=null;
+    eFindAll();
+    if(currentMode==='edit') eRender();
+    else startGame({ grid:data.grid.map(r=>[...r]), words:[...data.words], meta:{...data.meta} });
+  };
+  reader.readAsText(file);
+}
+
+// File input
+document.getElementById('fileInput').addEventListener('change', e=>{
+  if(e.target.files[0]) loadFile(e.target.files[0]); e.target.value='';
+});
+
+// Drop (global)
+function bindEditorDrop(){
+  const dz=document.getElementById('editorDrop'); if(!dz) return;
+  dz.addEventListener('dragover', e=>{e.preventDefault();dz.classList.add('drag-over');});
+  dz.addEventListener('dragleave',()=>dz.classList.remove('drag-over'));
+  dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag-over');const f=e.dataTransfer.files[0];if(f)loadFile(f);});
+}
+document.addEventListener('dragover',e=>e.preventDefault());
+document.addEventListener('drop',e=>{
+  e.preventDefault();
+  const f=e.dataTransfer.files[0]; if(f?.name.endsWith('.txt')) loadFile(f);
+});
+
+bindEditorDrop();
+eRender();
+</script>
+</body>
+</html>
