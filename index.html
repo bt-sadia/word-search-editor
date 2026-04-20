@@ -523,9 +523,12 @@ body {
 
   <div class="header-actions">
     <label class="btn btn-outline" style="cursor:pointer">
-      Load .txt<input type="file" accept=".txt" id="fileInput" style="display:none">
+      Load file<input type="file" accept=".txt,.json" id="fileInput" style="display:none">
     </label>
-    <button class="btn btn-green" id="exportBtn" style="display:none" onclick="exportFile()">Export</button>
+    <span id="exportBtns" style="display:none;gap:6px;display:none">
+      <button class="btn btn-outline" onclick="exportTxt()">↓ TXT</button>
+      <button class="btn btn-green"   onclick="exportJSON()">↓ JSON</button>
+    </span>
   </div>
 </div>
 
@@ -536,8 +539,8 @@ body {
   <div id="editorView">
     <div class="drop-zone" id="editorDrop">
       <div class="dz-icon">📄</div>
-      <div style="font-size:1rem;font-weight:600">Drop a .txt level file here</div>
-      <div style="font-size:0.82rem">or click <strong>Load .txt</strong> above</div>
+      <div style="font-size:1rem;font-weight:600">Drop a .txt or .json level file here</div>
+      <div style="font-size:0.82rem">or click <strong>Load file</strong> above</div>
     </div>
   </div>
 
@@ -546,7 +549,7 @@ body {
     <div class="play-empty" id="playEmpty">
       <div class="pe-icon">🔤</div>
       <div class="pe-text">No level loaded</div>
-      <div class="pe-sub">Load a .txt file or build one in Edit mode</div>
+      <div class="pe-sub">Load a .txt or .json file, or build one in Edit mode</div>
     </div>
   </div>
 
@@ -793,7 +796,7 @@ function switchMode(mode) {
   document.getElementById('playerView').style.display     = mode === 'play' ? 'flex'   : 'none';
   document.getElementById('editHeaderMeta').style.display = mode === 'edit' ? 'flex'   : 'none';
   document.getElementById('playHeaderInfo').style.display = mode === 'play' ? 'flex'   : 'none';
-  document.getElementById('exportBtn').style.display      = mode === 'edit' && G.grid.length ? '' : 'none';
+  document.getElementById('exportBtns').style.display      = mode === 'edit' && G.grid.length ? 'flex' : 'none';
 
   if (mode === 'play') {
     // Sync level from editor and start game
@@ -816,7 +819,7 @@ function switchMode(mode) {
 const DIRS8 = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
 
 let G = {
-  grid: [], words: [], meta: { id:'', theme:'', name:'' },
+  grid: [], words: [], wordMeta: [], meta: { id:'', theme:'', name:'' },
   active: null, placing: null, placeStart: null, foundMap: {},
 };
 
@@ -824,14 +827,15 @@ function eRows() { return G.grid.length; }
 function eCols() { return G.grid[0]?.length ?? 0; }
 
 function eFindWord(grid, word) {
+  const target = word.replace(/ /g, '');  // strip spaces — words with spaces are placed without them
   const R = grid.length, C = grid[0]?.length ?? 0;
   for (let r = 0; r < R; r++)
     for (let c = 0; c < C; c++)
       for (const [dr,dc] of DIRS8) {
         let ok = true; const cells = [];
-        for (let i = 0; i < word.length; i++) {
+        for (let i = 0; i < target.length; i++) {
           const nr = r+dr*i, nc = c+dc*i;
-          if (nr<0||nr>=R||nc<0||nc>=C||grid[nr][nc]!==word[i]){ok=false;break;}
+          if (nr<0||nr>=R||nc<0||nc>=C||grid[nr][nc]!==target[i]){ok=false;break;}
           cells.push({r:nr,c:nc});
         }
         if (ok) return cells;
@@ -849,11 +853,11 @@ function eRender() {
   if (!G.grid.length) {
     view.innerHTML = `<div class="drop-zone" id="editorDrop">
       <div class="dz-icon">📄</div>
-      <div style="font-size:1rem;font-weight:600">Drop a .txt level file here</div>
-      <div style="font-size:0.82rem">or click <strong>Load .txt</strong> above</div>
+      <div style="font-size:1rem;font-weight:600">Drop a .txt or .json level file here</div>
+      <div style="font-size:0.82rem">or click <strong>Load file</strong> above</div>
     </div>`;
     bindEditorDrop();
-    document.getElementById('exportBtn').style.display = 'none';
+    document.getElementById('exportBtns').style.display = 'none';
     document.getElementById('editHeaderMeta').style.display = currentMode === 'edit' ? 'flex' : 'none';
     return;
   }
@@ -866,7 +870,7 @@ function eRender() {
   document.documentElement.style.setProperty('--sz', sz+'px');
 
   if (currentMode === 'edit') {
-    document.getElementById('exportBtn').style.display = '';
+    document.getElementById('exportBtns').style.display = 'flex';
     document.getElementById('metaId').value    = G.meta.id;
     document.getElementById('metaTheme').value = G.meta.theme;
     document.getElementById('metaSize').value  = `${R}x${C}`;
@@ -1039,12 +1043,16 @@ function eCancelPlace()          { G.placing=null; G.placeStart=null; eRender();
 function eSelectWord(idx)        { G.active = G.active===idx ? null : idx; G.placing=null; eRender(); }
 function eAddWord() {
   const inp = document.getElementById('eAddInput');
-  const v = inp.value.trim().toUpperCase().replace(/[^A-Z]/g,'');
+  const v = inp.value.trim().toUpperCase().replace(/[^A-Z ]/g,'').replace(/\s+/g,' ');
   if (!v || G.words.includes(v)) { inp.value=''; inp.focus(); return; }
-  G.words.push(v); inp.value=''; inp.focus(); eFindAll(); eRender();
+  G.words.push(v);
+  G.wordMeta.push({ wordIndex: G.words.length - 1, originalWord: v });
+  inp.value=''; inp.focus(); eFindAll(); eRender();
 }
 function eRemoveWord(idx, e) {
-  e.stopPropagation(); G.words.splice(idx,1);
+  e.stopPropagation();
+  G.words.splice(idx, 1);
+  G.wordMeta.splice(idx, 1);
   if (G.active===idx) G.active=null; else if (G.active>idx) G.active--;
   eFindAll(); eRender();
 }
@@ -1106,21 +1114,89 @@ function eRunBonus() {
 }
 
 function eNewLevel() {
-  G={grid:Array.from({length:9},()=>Array(10).fill(' ')),words:[],
+  G={grid:Array.from({length:9},()=>Array(10).fill(' ')),words:[],wordMeta:[],
      meta:{id:String(Date.now()).slice(0,8),theme:'theme',name:'New Level'},
      active:null,placing:null,placeStart:null,foundMap:{}};
   eRender();
 }
-function exportFile() {
+function exportTxt() {
   const id    = document.getElementById('metaId').value.trim()||'0';
   const theme = document.getElementById('metaTheme').value.trim()||'theme';
   const name  = document.getElementById('metaName').value.trim().replace(/\s+/g,'_')||'Level';
   const size  = `${eRows()}x${eCols()}`;
-  const content = G.grid.map(r=>r.join('')).join('\n')+'\n\n'+G.words.join('\n')+'\n';
+  // Use original words (with spaces) for TXT export
+  const wordList = G.words.map((w,i) => G.wordMeta[i]?.originalWord ?? w);
+  const content = G.grid.map(r=>r.join('')).join('\n')+'\n\n'+wordList.join('\n')+'\n';
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([content],{type:'text/plain'}));
   a.download = `${id}-${theme}-${size}-${name}.txt`;
   a.click();
+}
+
+function exportJSON() {
+  const grid = G.grid, words = G.words;
+  const R = grid.length, C = grid[0]?.length ?? 0;
+  if (!R || !words.length) return;
+
+  const DRDC_TO_DIR = {
+    '1,0':0,'1,1':1,'0,1':2,'1,-1':3,'-1,0':4,'-1,-1':5,'0,-1':6,'-1,1':7
+  };
+  const DIR_NAMES = ['down','down-right','right','down-left','up','up-left','left','up-right'];
+
+  const id       = +(document.getElementById('metaId')?.value.trim()    || G.meta.id)    || 0;
+  const category =   document.getElementById('metaTheme')?.value.trim() || G.meta.theme  || 'custom';
+
+  const wordObjects = words.map((word, idx) => {
+    const cells = eFindWord(grid, word);
+    const wi = G.wordMeta[idx]?.wordIndex ?? idx;
+    const originalWord = G.wordMeta[idx]?.originalWord ?? word;
+
+    if (!cells || cells.length < 2) {
+      return { wordIndex: wi, word: originalWord, row: 0, col: 0, direction: 2, directionName: 'right' };
+    }
+
+    const dr = Math.sign(cells[1].r - cells[0].r);
+    const dc = Math.sign(cells[1].c - cells[0].c);
+    const direction = DRDC_TO_DIR[`${dr},${dc}`] ?? 2;
+
+    // Anchor = cell with minimum row, then minimum col
+    const anchor = cells.reduce((b, x) =>
+      x.r < b.r || (x.r === b.r && x.c < b.c) ? x : b
+    );
+
+    return { wordIndex: wi, word: originalWord, row: anchor.r, col: anchor.c,
+             direction, directionName: DIR_NAMES[direction] };
+  });
+
+  // rawBytes: 2-byte header (0x0000) + per word: wordIndex(2B LE) + row(1B) + col(1B) + dir(1B)
+  const bytes = new Uint8Array(2 + words.length * 5);
+  wordObjects.forEach((w, i) => {
+    const off = 2 + i * 5;
+    bytes[off]   = w.wordIndex & 0xFF;
+    bytes[off+1] = (w.wordIndex >> 8) & 0xFF;
+    bytes[off+2] = w.row;
+    bytes[off+3] = w.col;
+    bytes[off+4] = w.direction;
+  });
+
+  const rawBase64 = btoa(String.fromCharCode(...bytes));
+  const rawBytesStr = Array.from(bytes).map(b => b.toString(16).padStart(2,'0')).join(' ');
+
+  const lvl = {
+    id, category,
+    gridWidth: C, gridHeight: R,
+    wordCount: words.length,
+    seed: 0,
+    words: wordObjects,
+    rawBase64, rawBytes: rawBytesStr
+  };
+
+  const blob = new Blob([JSON.stringify([lvl], null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${id}-${category}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -1142,7 +1218,7 @@ function renderPlayEmpty() {
   view.innerHTML = `<div class="play-empty">
     <div class="pe-icon">🔤</div>
     <div class="pe-text">No level loaded</div>
-    <div class="pe-sub">Load a .txt file or build one in <strong>Edit</strong> mode</div>
+    <div class="pe-sub">Load a .txt or .json file, or build one in <strong>Edit</strong> mode</div>
   </div>`;
   document.getElementById('playTitle').textContent = '';
   document.getElementById('playTheme').textContent = '';
@@ -1415,23 +1491,79 @@ function parseFile(text, filename){
     if(!blank) grid.push(line.trim().toUpperCase().split(''));
     else if(line.trim()) words.push(line.trim().toUpperCase());
   }
+  const wordMeta = words.map((w, i) => ({ wordIndex: i, originalWord: w }));
   let meta={id:'',theme:'',name:''};
   if(filename){
     const base=filename.replace(/\.txt$/i,''), parts=base.split('-');
     if(parts.length>=4){ meta.id=parts[0]; meta.theme=parts[1]; meta.name=parts.slice(3).join(' ').replace(/_/g,' '); }
     else meta.name=base;
   }
-  return {grid,words,meta};
+  return {grid,words,wordMeta,meta};
+}
+
+// ── JSON level import ─────────────────────────────────────────────────────────
+const J_DIRS = {
+  0:[1,0], 1:[1,1], 2:[0,1], 3:[1,-1], 4:[-1,0], 5:[-1,-1], 6:[0,-1], 7:[-1,1]
+};
+const J_ANCHOR_LAST = new Set([4,5,6,7]);
+const J_FILLER = 'ABCDEFGHIJKLMNOPRSTUW';
+
+function parseJSONLevel(text, filename) {
+  let data;
+  try { data = JSON.parse(text); } catch(e) { return null; }
+  const lvl = Array.isArray(data) ? data[0] : data;
+  if (!lvl || !lvl.gridWidth || !lvl.gridHeight || !Array.isArray(lvl.words)) return null;
+
+  const R = lvl.gridHeight, C = lvl.gridWidth;
+  const grid = Array.from({length: R}, () => Array(C).fill(null));
+  const words = [], wordMeta = [];
+
+  for (const w of lvl.words) {
+    const letters = w.word.replace(/ /g, '');
+    const L = letters.length;
+    const [dr, dc] = J_DIRS[w.direction] ?? [0,1];
+    for (let i = 0; i < L; i++) {
+      let r, c;
+      if (J_ANCHOR_LAST.has(w.direction)) {
+        const steps = L - 1 - i;
+        r = w.row - steps * dr;
+        c = w.col - steps * dc;
+      } else {
+        r = w.row + i * dr;
+        c = w.col + i * dc;
+      }
+      if (r >= 0 && r < R && c >= 0 && c < C) grid[r][c] = letters[i];
+    }
+    words.push(w.word);
+    wordMeta.push({ wordIndex: w.wordIndex ?? words.length - 1, originalWord: w.word });
+  }
+
+  for (let r = 0; r < R; r++)
+    for (let c = 0; c < C; c++)
+      if (!grid[r][c]) grid[r][c] = J_FILLER[Math.floor(Math.random() * J_FILLER.length)];
+
+  let meta = { id: String(lvl.id ?? ''), theme: lvl.category ?? '', name: '' };
+  if (filename) {
+    const base = filename.replace(/\.json$/i,''), parts = base.split('-');
+    if (parts.length >= 4) {
+      meta.id = parts[0]; meta.theme = parts[1];
+      meta.name = parts.slice(3).join(' ').replace(/_/g,' ');
+    }
+  }
+  return { grid, words, wordMeta, meta };
 }
 
 function loadFile(file){
-  new FileReader().onload = null; // noop
   const reader = new FileReader();
   reader.onload = e=>{
-    const data = parseFile(e.target.result, file.name);
-    if(!data.grid.length){alert('Could not parse file.');return;}
-    // Load into editor state
-    G.grid=data.grid; G.words=data.words; G.meta=data.meta;
+    const isJSON = file.name.toLowerCase().endsWith('.json');
+    const data = isJSON
+      ? parseJSONLevel(e.target.result, file.name)
+      : parseFile(e.target.result, file.name);
+    if (!data || !data.grid.length) { alert('Could not parse file.'); return; }
+    G.grid=data.grid; G.words=data.words;
+    G.wordMeta=data.wordMeta || data.words.map((w,i)=>({wordIndex:i,originalWord:w}));
+    G.meta=data.meta;
     G.active=null; G.placing=null; G.placeStart=null;
     eFindAll();
     if(currentMode==='edit') eRender();
@@ -1450,12 +1582,12 @@ function bindEditorDrop(){
   const dz=document.getElementById('editorDrop'); if(!dz) return;
   dz.addEventListener('dragover', e=>{e.preventDefault();dz.classList.add('drag-over');});
   dz.addEventListener('dragleave',()=>dz.classList.remove('drag-over'));
-  dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag-over');const f=e.dataTransfer.files[0];if(f)loadFile(f);});
+  dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag-over');const f=e.dataTransfer.files[0];if(f&&(f.name.endsWith('.txt')||f.name.endsWith('.json')))loadFile(f);});
 }
 document.addEventListener('dragover',e=>e.preventDefault());
 document.addEventListener('drop',e=>{
   e.preventDefault();
-  const f=e.dataTransfer.files[0]; if(f?.name.endsWith('.txt')) loadFile(f);
+  const f=e.dataTransfer.files[0]; if(f?.name.endsWith('.txt')||f?.name.endsWith('.json')) loadFile(f);
 });
 
 bindEditorDrop();
