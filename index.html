@@ -511,7 +511,7 @@ body {
     <input class="meta-input" id="metaId"    placeholder="ID"     style="width:80px"  title="Level ID">
     <input class="meta-input" id="metaTheme" placeholder="Theme"  style="width:85px"  title="Theme">
     <input class="meta-input" id="metaSize"  placeholder="Size"   style="width:62px"  title="Grid size" readonly>
-    <input class="meta-input" id="metaName"  placeholder="Level name" style="width:140px" title="Level name">
+    <input class="meta-input" id="metaName"  placeholder="Level name" style="width:180px" title="Level name">
   </div>
 
   <!-- Play-mode header -->
@@ -1495,8 +1495,17 @@ function parseFile(text, filename){
   let meta={id:'',theme:'',name:''};
   if(filename){
     const base=filename.replace(/\.txt$/i,''), parts=base.split('-');
-    if(parts.length>=4){ meta.id=parts[0]; meta.theme=parts[1]; meta.name=parts.slice(3).join(' ').replace(/_/g,' '); }
-    else meta.name=base;
+    if(/^Level_\d+$/i.test(parts[0]) && parts.length>=4){
+      // New format: Level_0001-gameId-category-size.txt
+      meta.name  = parts[0].replace('_',' ');   // "Level 0001"
+      meta.id    = parts[1];                     // game id e.g. "10785"
+      meta.theme = parts[2];                     // category e.g. "nature"
+    } else if(parts.length>=4){
+      // Old format: gameId-category-size-LevelName.txt
+      meta.id=parts[0]; meta.theme=parts[1]; meta.name=parts.slice(3).join(' ').replace(/_/g,' ');
+    } else {
+      meta.name=base;
+    }
   }
   return {grid,words,wordMeta,meta};
 }
